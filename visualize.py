@@ -1,34 +1,29 @@
-from fredapi import Fred
-import os
-from dotenv import load_dotenv
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import yfinance as yf
 import pandas as pd
-import time
+from data_loader import load_all_data
 
-load_dotenv()
-fred = Fred(api_key = os.getenv('FRED_API_KEY'))
+data = load_all_data()
 
-fed_funds = fred.get_series('FEDFUNDS', observation_starts = '2010-01-01')
-aerospace_ppi = fred.get_series('PCU336411336411', observation_start='2010-01-01')
-defense = fred.get_series('FDEFX', observation_start='2010-01-01')
+fed_funds = data['fed_funds']
+prices = data['prices']
+financials = data['financials']
+aerospace_ppi = data['aerospace_ppi']
 
 tickers = ['RKLB', 'PL', 'IRDM', 'VSAT']
 revenues = {}
 fcfs = {}
 
 for t in tickers:
-    stock = yf.Ticker(t)
-    time.sleep(2)
+    rev = financials[t]['revenue'].copy()
+    fcf = financials[t]['fcf'].copy()
+    rev.index = rev.index.year
+    fcf.index = fcf.index.year
+    rev = rev[~rev.index.duplicated(keep = 'last')]
+    fcf = fcf[~fcf.index.duplicated(keep = 'last')]
+    revenues[t] = rev
+    fcfs[t] = fcf
 
-    financials = stock.financials
-    cashflow = stock.cashflow
-    revenues[t] = financials.loc['Total Revenue'].sort_index()
-    fcfs[t] = cashflow.loc['Free Cash Flow'].sort_index()
-
-
-prices = yf.download(tickers + ['SPY'], start = "2010-01-01")['Close']
 normalized = prices/prices.iloc[0] * 100
 
 fig, axes = plt.subplots(4, 1, figsize = (14, 20))
@@ -46,6 +41,8 @@ ax1b.set_ylabel('Aerospace PPI')
 ax1.legend(loc = 'upper left')
 ax1b.legend(loc = 'upper right')
 
+#Rates rose but input cost kept rising, rising costs and rates squeezed cos from both sides
+
 ##revenue
 ax2 = axes[1]
 colors = ['steelblue', 'coral', 'green', 'purple']
@@ -54,7 +51,12 @@ for(t, rev), color in zip(revenues.items(), colors):
 ax2.set_title("Annual Revenue by Company (USD Billions)")
 ax2.set_ylabel("Revenue ($B)")
 ax2.legend()
+ax2.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
 ax2.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'${x:.1f}B'))
+
+
+#VSAT dominates, RKLB grew fas from 0 while RDM shows steady stable growth
+# RKLB and PL are still small compared to legacy firms -> new space revenue base is still small 
 
 #Free Cash Flow
 ax3 = axes[2]
@@ -63,7 +65,11 @@ for(t, fcf), color in zip(fcfs.items(), colors):
 ax3.set_title("Free Cash Flow by Company (USD Billions)")
 ax3.set_ylabel("FCF ($B)")
 ax3.legend()
+ax3.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
 ax3.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f'${x:.1f}B'))
+
+#IRDM is consistently positive, VSAT crashed then recovered RKLB is getting worse, PL just became positive
+#ONly one company is reliably cash flow positive
 
 #performance vs s and p 500
 ax4 = axes[3]
@@ -75,11 +81,19 @@ for col in normalized.columns:
         ax4.plot(normalized.index, normalized[col], label = col)
 ax4.set_title("Stock Performance vs S&P 500 Performance (normalized)")
 ax4.set_ylabel('Indexed Price')
+ax4.set_ylim(0, 400)
 ax4.legend()
 
+#Most underperformedperformed SPY
+
 #Formatting
-for ax in axes:
+for ax in [ax1, ax4]:
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y'))
+
+for ax in [ax2, ax3]:
+    ax.xaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: str(int(x))))
+
+for ax in axes:
     ax.grid(True, alpha=0.3)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
