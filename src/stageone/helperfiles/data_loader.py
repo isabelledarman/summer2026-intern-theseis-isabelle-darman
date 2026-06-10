@@ -17,12 +17,16 @@ def load_all_data():
     defense = fred.get_series('FDEFX', observation_start = '2021-01-01')
 
     #Stock prices
-    space_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT', 'LMT', 'NOC', 'ARKX', 'ROKT']
+    space_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT',  # existing
+    'ASTS', 'LMT', 'NOC', 'BA', 'RTX',  # adding
+    'ARKX', 'ROKT']
     prices = yf.download(space_tickers + ['SPY'], start = '2021-01-01')['Close']
 
     ##Company Financials
     financials = {}
-    for t in ['RKLB', 'PL', 'IRDM', 'VSAT']:
+    fin_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT', 'ASTS', 'LMT', 'NOC', 'BA', 'RTX']
+
+    for t in fin_tickers:
         stock = yf.Ticker(t)
         financials[t] = {
             'revenue': stock.financials.loc['Total Revenue'].sort_index(),
