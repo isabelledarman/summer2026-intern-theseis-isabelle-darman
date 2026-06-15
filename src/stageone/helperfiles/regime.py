@@ -65,7 +65,7 @@ def make_regime():
     colors = ['steelblue', 'coral', 'green']
 
     for i, (col, color) in enumerate(zip(regime_df.columns, colors)):
-        ax.bar(x + 1 * width, regime_df[col], width, label = col, color = color, alpha = 0.85)
+        ax.bar(x + i * width, regime_df[col], width, label = col, color = color, alpha = 0.85)
 
     ax.axhline(y = 0, color = 'black', linewidth = 0.8, linestyle = '--')
     ax.set_xticks(x + width)
@@ -77,7 +77,8 @@ def make_regime():
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     plt.tight_layout()
-    plt.savefig('regime_bars.png', dpi = 150, bbox_inches='tight')
+    chart_dir = os.path.join(os.path.dirname(__file__), '..', 'charts')
+    plt.savefig(os.path.join(chart_dir, 'bar_charts_regime.png'))
 
     #SPY vs Space index regimes
 
@@ -107,8 +108,8 @@ def make_regime():
     ax.spines['right'].set_visible(False)
 
     plt.tight_layout()
-    chart_dir = os.path.join(os.path.dirname(__file__), '..', 'charts')
-    plt.savefig(os.path.join(chart_dir, 'regime_plots.png'))
+
+    plt.savefig(os.path.join(chart_dir, 'comparison_regime.png'))
 
     return{
         't_stat': round(t_stat, 3),

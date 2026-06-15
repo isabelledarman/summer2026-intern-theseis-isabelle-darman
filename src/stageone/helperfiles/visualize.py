@@ -29,8 +29,6 @@ def make_initial_charts():
     normalized = prices/prices.iloc[0] * 100
 
     fig, axes = plt.subplots(4, 1, figsize = (14, 20))
-    fig.suptitle('Space Economy: Investment Thesis Data', fontsize = 16, fontweight = 'bold')
-
 
     #fed funds and aerospace ppi
     ax1 = axes[0]
