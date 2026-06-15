@@ -7,17 +7,17 @@ or a long-duration speculative bet with no near term cash flows?
 
 ## 1. Does revenue growth predict stock returns? (Regression)
 
-- R Squared = 0.485
-- p-value = 0.037
+- R Squared = 0.311
+- p-value = 0.048
 
 **Interpretation:** A statistically significant relationship exists between revenue growth and stock returns (p < 0.05).
 This means fundamentals partially explain returns. The sector is not purely narrative drive.
-However, R squared of 0.485 means roughly 52% of return variation is explained by revenue growth. Narrative and macro conditions still play a large role.
+However, R squared of 0.311 means roughly 69% of return variation is explained by revenue growth. Narrative and macro conditions still play a large role.
 
 ## 2. Are returns sensitive to interest rate regimes? (Regime Analysis)
 
-- T-statistic = -0.333
-- P-value = 0.744
+- T-statistic = -0.436
+- P-value = 0.669
 
 **Interpretation:** There is a statistically significant difference in returns between hgih-rate and low rate eras (p < 0.05), supporting the view that space stocks behave as rate-sensitive, speculative assets.
 
@@ -32,7 +32,7 @@ However, R squared of 0.485 means roughly 52% of return variation is explained b
 
 Based on the evidence above:
 
-- Fundamentals (revenue growth) do have a statistically significant relationship with stock returns (R squared = 0.485, p = 0.037), but explain only part of the picture.
+- Fundamentals (revenue growth) do have a statistically significant relationship with stock returns (R squared = 0.311, p = 0.048), but explain only part of the picture.
 - The sector does not show, at an aggregate level, statistically significant sensitivity to interest rate regimes, though individual high-growth names show sensitivity where the average does not.
 - 6 of 9 analyszed companies are currently free-cash-flow positive.
 

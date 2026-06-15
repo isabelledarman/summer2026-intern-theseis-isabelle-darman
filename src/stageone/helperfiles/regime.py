@@ -10,8 +10,9 @@ def make_regime():
     data = load_all_data()
 
     fed_funds = data['fed_funds']
-    financials = data['financials']
     prices = data['prices']
+    pure_play = data['pure_play']
+    diversified = data['diversified']
 
     normalized = prices / prices.iloc[0] * 100
 
@@ -24,7 +25,8 @@ def make_regime():
     high_rate  = normalized[(normalized.index >= '2022-03-01') & (normalized.index < '2024-09-01')]
     cutting    = normalized[(normalized.index > '2024-09-01')]
 
-    space_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT', 'ASTS', 'LMT', 'NOC', 'BA', 'RTX']
+    all_tickers = pure_play + diversified
+    space_tickers = [t for t in all_tickers if t in normalized.columns]
 
     def period_return(df, tickers):
         returns = {}
@@ -48,7 +50,6 @@ def make_regime():
     })
 
     regime_df = regime_df.dropna(thresh = 2)
-
     print(regime_df.round(1))
 
     #T-Test: are returns different across regimes?

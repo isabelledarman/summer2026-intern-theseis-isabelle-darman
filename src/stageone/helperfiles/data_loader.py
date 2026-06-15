@@ -17,27 +17,47 @@ def load_all_data():
     defense = fred.get_series('FDEFX', observation_start = '2021-01-01')
 
     #Stock prices
-    space_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT',  # existing
-    'ASTS', 'LMT', 'NOC', 'BA', 'RTX',  # adding
-    'ARKX', 'ROKT']
-    prices = yf.download(space_tickers + ['SPY'], start = '2021-01-01')['Close']
+    pure_play = ['RKLB', 'PL', 'IRDM', 'VSAT', 'ASTS', 'RDW', 'KTOS', 'SATL', 'LUNR']
+    diversified = ['LMT', 'NOC', 'BA', 'RTX']
+
+    all_tickers = pure_play + diversified
+
+    prices = yf.download(all_tickers + ['SPY', 'ARKX', 'ROKT'], start = '2021-01-01')['Close']
 
     ##Company Financials
     financials = {}
-    fin_tickers = ['RKLB', 'PL', 'IRDM', 'VSAT', 'ASTS', 'LMT', 'NOC', 'BA', 'RTX']
 
-    for t in fin_tickers:
-        stock = yf.Ticker(t)
-        financials[t] = {
-            'revenue': stock.financials.loc['Total Revenue'].sort_index(),
-            'gross_profit': stock.financials.loc['Gross Profit'].sort_index(),
-            'fcf': stock.cashflow.loc['Free Cash Flow'].sort_index()
-        }
+    for t in all_tickers:
+        try:
+            stock = yf.Ticker(t)
+
+            cf = stock.cashflow
+            fin = stock.financials
+
+            rev = fin.loc['Total Revenue'].sort_index()
+            gp = fin.loc['Gross Profit'].sort_index()
+            fcf = cf.loc['Free Cash Flow'].sort_index()
+
+            rev.index = pd.to_datetime(rev.index)
+            gp.index = pd.to_datetime(gp.index)
+            fcf.index = pd.to_datetime(fcf.index)
+
+            rev = rev[~rev.index.duplicated(keep = 'last')]
+            gp = gp[~gp.index.duplicated(keep = 'last')]
+            fcf = fcf[~fcf.index.duplicated(keep = 'last')]
+
+            financials[t] = {'revenue': rev, 'gross_profit': gp, 'fcf': fcf }
+
+        except Exception as e:
+            print(f"Could not load financials for {t}: {e}")
+            financials[t] = None
 
     return{
         'fed_funds': fed_funds,
         'aerospace_ppi' : aerospace_ppi,
         'defense': defense,
         'prices': prices,
-        'financials': financials
+        'financials': financials,
+        'pure_play': pure_play,
+        'diversified': diversified
     }
