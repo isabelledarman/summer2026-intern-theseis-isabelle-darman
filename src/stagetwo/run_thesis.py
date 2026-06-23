@@ -10,7 +10,8 @@ import matplotlib.dates as mdates
 
 import config
 from data.loaders import load_market_data
-from analysis import regression, regimes, risk
+from analysis import regression, regimes, risk, robustness
+
 
 OUTPUT_DIR = "output"
 
@@ -32,18 +33,18 @@ def chart_regression(result: regression.RegressionResult, path: str) -> None:
     if result.slope is not None:
         x = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'].max() + 20, 100)
         y = result.slope * x + result.intercept
-        ax.plot(x, y, color = 'black', linestyle='--', linewidth = 1.5, label = f'Regression Line (R^2 = {result.r_squared ** 2: .2f})')
+        ax.plot(x, y, color = 'black', linestyle='--', linewidth = 1.5, label = f'Regression Line (R^2 = {result.r_squared: .2f})')
         ax.legend()
 
     ax.axhline(y=0, color='gray', linestyle = ':', linewidth = 0.8)
     ax.axvline(x = 0, color = 'gray', linestyle=':', linewidth = 0.8)
     ax.set_xlabel('Revenue Growth (%) Since 2021', fontsize=13)
-    ax.set_ylabel('Stock Return (%) Since 2021', fontsize=13)
+    ax.set_ylabel(f'Stock Return (%, {result.return_method})', fontsize=13)
     ax.grid(True, alpha=0.3)
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     fig.tight_layout()
-    fig.savefig(path, dpi = 12)
+    fig.savefig(path, dpi = 120)
     plt.close(fig)
 
 def chart_regimes(result: regimes.RegimeResult, path: str) -> None:
@@ -90,7 +91,7 @@ def chart_space_vs_spy(result: regimes.RegimeResult, path: str) -> None:
     ax.spines['right'].set_visible(False)
 
     fig.tight_layout()
-    fig.savefig(path, dpi=12)
+    fig.savefig(path, dpi=120)
     plt.close(fig)
 
 def chart_risk(risk_df: pd.DataFrame, path: str)->None:
@@ -120,50 +121,56 @@ def chart_risk(risk_df: pd.DataFrame, path: str)->None:
 def build_scorecard(reg, reg_div, regime, risk_df) -> list[dict]:
     signals = []
     pure = risk_df[risk_df["group"] == "pure_play"]
+
+    spy_row = risk_df[risk_df["ticker"] == "SPY"]
+    spy_ann = float(spy_row["annual_return_%"].iloc[0]) if not spy_row.empty else 13.0
+
+    def add(name, verdict, detail, weight, kind):
+        signals.append({"name": name, "verdict": verdict, "detail": detail, "weight": weight, "kind": kind})
     
     med_sharpe = pure["sharpe"].median()
     if pd.isna(med_sharpe):
-        signals.append({"name": "Pure-play Sharpe", "verdict": 0, "detail": "insufficient data"})
+        add("Pure-play Sharpe", 0, "n/a", 2, "risk")
     else:
         v = 1 if med_sharpe > 0.5 else (-1 if med_sharpe < 0 else 0)
-        signals.append({"name": "Pure-play Sharpe (median)", "verdict": v, "detail": f"{med_sharpe:.2f}"})
+        add("Pure-play Sharpe (median)", v, f"{med_sharpe:.2f}", 2, "risk")
 
     med_dd = pure["max_drawdown_%"].median()
     if pd.isna(med_dd):
-        signals.append({"name": "Pure-play drawdown", "verdict": 0, "detail": "n/a"})
+        add("Pure-play drawdown", 0, "n/a", 2, "risk")
     else:
         v = 1 if med_dd > -60 else (-1 if med_dd < -80 else 0)
-        signals.append({"name": "Pure-play ,ax drawdown (median)", "verdict": v, "detail": f"{med_dd:.0f}%"})
+        add("Pure-play max drawdown (median)", v, f"{med_dd:.0f}%", 2, "risk")
 
     if reg.slope is None:
-        signals.append({"name": "Revenue -> return link", "verdict": 0, "detail": "n/a"})
+        add("Revenue -> return link", 0, "n/a", 1, "return")
     else:
         v = 1 if reg.slope > 0 else -1
         flag = " (low power)" if reg.low_power else ""
-        signals.append({"name": "Revenue -> return link", "verdict": v, "detail": f"slope = {reg.slope}, R\u00b2={reg.r_squared:.2f}{flag}"})
+        add("Revenue -> return link", v, f"slope = {reg.slope}, R\u00b2={reg.r_squared:.2f}{flag}", 1, "return")
 
     cut_col = config.REGIME_LABELS['cutting']
     if cut_col in regime.regime_df.columns and not regime.regime_df.empty:
         cut_med = regime.regime_df[cut_col].median()
         if pd.isna(cut_med):
-            signals.append({"name": "Return in cutting era", "verdict": 0, "detail": "n/a"})
+            add("Return in cutting era", 0, "n/a", 1, "return")
         else:
             v = 1 if cut_med > 0 else -1
-            signals.append({"name": "Return in cutting era", "verdict": v, "detail": f"{cut_med:.0f}%"})
+            add( "Return in cutting era", v, f"{cut_med:.0f}%", 1, "return")
     else:
-        signals.append({"name": "Regime resilience", "verdict": 0, "detail": "n/a"})
+        add("Regime resilience", 0, "n/a", 1, "return")
 
-    spy_ret = None
-    spy_row = risk_df[risk_df["ticker"] == "SPY"]
     pure_ret = pure["annual_return_%"].median()
-    signals.append({"name": "Pure-play ann. return (median)", "verdict": 
-                    (1 if (not pd.isna(pure_ret) and pure_ret > 0) else
-                     (-1 if not pd.isna(pure_ret) else 0)),
-                    "detail": f"{pure_ret:.0f}%" if not pd.isna(pure_ret) else "n/a"})
-    
+
+    if pd.isna(pure_ret):
+        add("Pure-play return vs SPY", 0, "n/a", 1, "return")
+    else:
+        v = 1 if pure_ret > spy_ann else (-1 if pure_ret < 0 else 0)   
+        add("Pure-play return vs SPY", v, f"{pure_ret:.0f}% vs SPY ~{spy_ann:.0f}%", 1, "return")
+ 
     return signals
 
-def print_report(reg, reg_div, regime, risk_df, method) -> None:
+def print_report(reg, reg_div, regime, risk_df, method, data) -> None:
     print("Is the space economy an investable sector?\n")
     print(f"Return convention {method} | Universe: {len(config.ALL_TICKERS)} names \n")
     
@@ -174,24 +181,51 @@ def print_report(reg, reg_div, regime, risk_df, method) -> None:
     print(f"Regression (revenue growth -> returns)")
     print(f"slope = {reg.slope}, R\u00b2={reg.r_squared}, p = {reg.p_value}, n = {reg.n}")
 
-    print("/nRegime T-Test (low vs high rate returns)")
+    print("\nRegime T-Test (low vs high rate returns)")
     print(f" t = {regime.t_stat}, p = {regime.p_value}")
 
     signals = build_scorecard(reg, reg_div, regime, risk_df)
-    print("\nScorecared\n")
+
+    print("\nRobustness Checks")
+
+    boot = robustness.bootstrap_regression(data, config.ALL_TICKERS, method=method)
+    print(f" Bootstrap slope 95% CI: ({boot.slope_ci[0]: .3f}, {boot.slope_ci[1]:.3f})"
+          f" | crosses zero: {boot.slope_crosses_zero}"
+          f" | share positive: {boot.share_positive_slope:.0%}")
+    
+    top = robustness.drop_top_performers(data, k = 2, selected_tickers=config.ALL_TICKERS, method = method)
+    print(f"  Drop top 2 ({top.get('dropped')}): slope {top.get('slope_full'):.3f} "
+          f"-> {top.get('slope_without_top'):.3f} | {top.get('note')}")
+
+    
+    print( " Return-convention robustness")
+    print(robustness.convention_robustness(data, config.ALL_TICKERS).to_string(index=False))
+    print("\nScorecard\n")
+
     score = 0
+    risk_score = 0
+    return_score = 0
     for s in signals:
         mark = {1 : "[+] leans investable", 0 : "[~] inconclusive", -1: "[-] leans Pipe Dream"}[s["verdict"]]
-        score += s["verdict"]
-        print(f"  {mark:28s} {s['name']}: {s['detail']}")
+        contribution = s["verdict"] * s["weight"]
+        score += contribution
+        if s["kind"] == "risk":
+            risk_score += contribution
+        else:
+            return_score += s["verdict"]
+
+        wtag = f"(x{s['weight']})" if s["weight"] > 1 else "   "
+        print(f"  {wtag} {mark:28s} {s['name']}: {s['detail']}")
     
     n_decisive = sum(1 for s in signals if s["verdict"] != 0)
-    if score >= 2:
+    if score >= 3:
         verdict = "The evidence LEANS TOWARD investable"
-    elif score <= -2:
+    elif score <= -3:
         verdict = "The evidence LEANS TOWARD pipe dream / premature"
+    elif return_score > 0 and risk_score < 0:
+        verdict = "Real, but too much risk"
     else:
-        verdict = "The evidence is MIXED / inconclusive"
+        verdict = "The evidence is mixed"
     print(f"NET SCORE: {score:+d}  ({n_decisive} decisive signals)")
     print(f"READ: {verdict}.")
     print(
@@ -233,7 +267,7 @@ def main() -> int:
     chart_regimes(regime, f"{OUTPUT_DIR}/1_regimes.png")
     chart_space_vs_spy(regime, f"{OUTPUT_DIR}/1_space_vs_spy.png")
 
-    print_report(reg, reg_div, regime, risk_df, args.method)
+    print_report(reg, reg_div, regime, risk_df, args.method, data)
 
     return 0
 

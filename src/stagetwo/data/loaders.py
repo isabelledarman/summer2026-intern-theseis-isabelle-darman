@@ -5,7 +5,10 @@ import warnings
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 import pandas as pd
+from dotenv import load_dotenv
 import config
+
+load_dotenv()
 
 warnings.filterwarnings('ignore', category=FutureWarning)
 

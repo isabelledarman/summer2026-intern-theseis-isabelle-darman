@@ -1,7 +1,7 @@
 from datetime import date
 
-PURE_PLAY: list[str] = ['RKLB', 'PL','IRDM', 'VSAT', 'ASTS', 'RDW', 'KTOS', 'SATL', 'LUNR']
-DIVERSIFIED: list[str] = ['LMT', 'NOC', 'BA', 'RTX']
+PURE_PLAY: list[str] = ['RKLB', 'PL','IRDM', 'VSAT', 'ASTS', 'RDW', 'KTOS', 'SATL', 'LUNR', 'BKSY', 'SPIR']
+DIVERSIFIED: list[str] = ['LMT', 'NOC', 'BA', 'RTX', 'LHX']
 ALL_TICKERS: list[str] = PURE_PLAY + DIVERSIFIED
 BENCHMARKS: list[str] = ['SPY', 'ARKX', 'ROKT']
 
