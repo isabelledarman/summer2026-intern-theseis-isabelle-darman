@@ -60,6 +60,10 @@ def _load_prices(force: bool = False) -> tuple[pd.DataFrame, list[str], list[str
         )
         prices = raw['Close'] if 'Close' in raw.columns.get_level_values(0) else raw
         prices = prices.sort_index()
+        try:
+            prices.index = prices.index.tz_localize(None)
+        except(TypeError, AttributeError):
+            pass
         prices.to_parquet(path)
         notes.append("prices: freshly fetched from yfinance")
 
@@ -70,6 +74,10 @@ def _load_prices(force: bool = False) -> tuple[pd.DataFrame, list[str], list[str
 def _clean_series(s: pd.Series) -> pd.Series:
     s = s.copy()
     s.index = pd.to_datetime(s.index)
+    try:
+        s.index = s.index.tz_localize(None)
+    except(TypeError, AttributeError):
+        pass
     s = s[~s.index.duplicated(keep = "last")].sort_index()
     return s
 

@@ -5,7 +5,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import config
 from data.loaders import load_market_data
-from analysis import (regression, regimes, risk, robustness, scorecard as sc, returns as R)
+from analysis import (regression, regimes, risk, robustness, scorecard as sc, returns as R, valuation)
 
 st.set_page_config(page_title="Space Economy Thesis", layout= "wide")
 
@@ -69,8 +69,8 @@ signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_
 verdict = sc.compute_verdict(signals)
 
 st.caption("Is the commercial space economy a legitimate invesatble theme or a long-duraction speculative bet?")
-tab_verdict, tab_reg, tab_risk, tab_regime, tab_robust, tab_fund = st.tabs(
-    ["Verdict", "Regression", "Risk", "Regimes", "Robustness", "Fundamentals"]
+tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_verdict, tab_robust = st.tabs(
+    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Verdict", "Robustness"]
 )
 
 with tab_verdict:
@@ -78,7 +78,7 @@ with tab_verdict:
     c1, c2, c3 = st.columns(3)
     c1.metric("Net Weighted Score", f"{verdict['score']:+0f}")
     c2.metric("Return Signals", f"{verdict['return_score']:+d}")
-    c3.metric("Risk Signals", f"{verdict['risk_score']:+0f}")
+    c3.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
 
     st.subheader("Signals")
     rows = []
@@ -102,7 +102,7 @@ with tab_reg:
             fig.add_trace(go.Scatter(
                 x = g["revenue_growth"], y = g["stock_return"], mode = "markers+text", text = g["ticker"], textposition = "top center", name = grp, marker=dict(size = 14, color = color)))
         if reg.slope is not None:
-            xs = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'] + 20, 100)
+            xs = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'].max() + 20, 100)
             fig.add_trace(go.Scatter(x=xs, y= reg.slope*xs + reg.intercept, mode="lines", name=f"Fit (R\u00b2 = {reg.r_squared:.2f})",
                                          line = dict(color = "black", dash = "dash")))
         fig.update_layout(xaxis_title = "Revenue Growth (%)", yaxis_title = f"Stock Return (%, {method})", height = 560, hovermode = "closest")
@@ -119,7 +119,7 @@ with tab_risk:
         color = [PURE_COLOR if g == "pure_play" else DIV_COLOR for g in d["group"]]
         fig = go.Figure(go.Bar(x=d["sharpe"], y = d["ticker"], orientation = "h", marker_color = color))
         fig.add_vline(x=1, line_dash = "dash", line_color = "green", annotation_text="Sharpe = 1")
-        fig.update_layout(xaxis_title = "Sharpe Ratio", height = 250)
+        fig.update_layout(xaxis_title = "Sharpe Ratio", height = 500)
         st.plotly_chart(fig, width = 'stretch')
 
     st.subheader("Full Risk Table")
@@ -178,7 +178,7 @@ with tab_robust:
     top = robustness.drop_top_performers(data, k = 2, selected_tickers=selected_tickers, method=method)
     st.write(f"**Drop top 2 ({top.get('dropped')}):** slope "
              f"{top.get('slope_full'):.3f} \u2192 {top.get('slope_without_top'):.3f}"
-             "f{top.get('note')}")
+             f"{top.get('note')}")
     
     st.subheader("Return-Convention Robustness")
     st.dataframe(robustness.convention_robustness(data, selected_tickers), width='stretch', hide_index = True)
@@ -186,3 +186,49 @@ with tab_robust:
     st.caption("Does the regime story survive moving the cutoff dates?")
     st.dataframe(robustness.regime_data_sensitivity(data, selected_tickers), width='stretch', hide_index = True)
 
+with tab_valuation:
+    st.header("Is the price justified by the business?")
+    st.caption("Market cap is computed as shares * price so P/S is real and time-varying. The decomposition splits each stock's move into business growth vs. multiple re-reating")
+    cset1, cset2 = st.columns(2)
+
+    target_ps = cset1.slider("'Normal' P/S to grow into", 1.0, 10.0, 4.0, 0.5)
+    years = cset2.slider("Years to normalize", 1, 10, 5)
+    vt = valuation.valuation_table(data, selected_tickers, target_ps=target_ps, years=years)
+    
+    st.subheader("Price-to-Sales Multiple")
+    d = vt.dropna(subset=['ps_ratio']).sort_values('ps_ratio')
+    if not d.empty:
+        colors = ['#4682b4' if g == 'pure_play' else '#888888' for g in d['group']]
+        fig = go.Figure(go.Bar(x=d['ps_ratio'], y = d['ticker'], orientation = 'h', marker_color = colors))
+        fig.update_layout(xaxis_title = "P/S (market cap / revenue)", height = 460)
+        st.plotly_chart(fig, width = 'stretch')
+
+    st.subheader("Priced for perfection?")    
+    st.caption("Top-left = expensive but slow growing (danger). Bottom-right = cheap to relative growth") 
+    s = vt.dropna(subset=['ps_ratio', 'rev_growth_%'])
+
+    if not s.empty:
+        fig2 = go.Figure()
+        for grp, color in [("pure_play", "#4682b4"), ("diversified", "#888888")]:
+            g = s[s["group"] == grp]
+            fig2.add_trace(go.Scatter(x=g['rev_growth_%'], y=g['ps_ratio'], mode = "markers+text", text =g['ticker'], textposition="top center", name = grp, marker=dict(size = 13, color = color)))
+
+        fig2.update_layout(xaxis_title = "Revenue Growth (%)", yaxis_title="P/S Multiple", height = 520)
+        st.plotly_chart(fig2, width = 'stretch')
+
+    st.subheader("What drove the returns: Business or the Multiple")
+    st.caption("Fundamental = sales-per-share growth. Re-rating = change in P/S. Returns built mostly on re-reating are the speculation tell.")
+
+    dec = valuation.decomposition_table(data, selected_tickers).dropna(subset=['fundamental_%', 'rerating_%'])    
+    if not dec.empty:
+        fig3 = go.Figure()
+        fig3.add_trace(go.Bar(x=dec['ticker'], y = dec['fundamental_%'], name = "Funamental (sales/share)", marker_color = "#3a9d52"))
+        fig3.add_trace(go.Bar(x=dec['ticker'], y=dec['rerating_%'], name = "Multiple Re-Rating", marker_color="#e07a3f"))
+        fig3.update_layout(barmode='relative', yaxis_title='Contribution to Return (%)', height = 480)
+        st.plotly_chart(fig3, width = 'stretch')
+        st.dataframe(dec[['ticker', 'group', 'total_return_%', 'fundamental_%', 'rerating_%']], width = 'stretch', hide_index = True)
+
+    st.subheader('Valuation Table')
+    st.dataframe(vt, width = 'stretch', hide_index = True)
+    if vt['ev_to_rev'].isna().all():
+        st.caption("EV/Revenue is blank")
