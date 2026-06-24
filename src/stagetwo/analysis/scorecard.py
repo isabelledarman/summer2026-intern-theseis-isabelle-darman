@@ -5,9 +5,6 @@ def build_scorecard(reg, regime, risk_df, risk_weight: float = 2.0 , spy_ann: fl
     signals = []
     pure = risk_df[risk_df["group"] == "pure_play"]
 
-    spy_row = risk_df[risk_df["ticker"] == "SPY"]
-    spy_ann = float(spy_row["annual_return_%"].iloc[0]) if not spy_row.empty else 13.0
-
     def add(name, verdict, detail, weight, kind):
         signals.append({"name": name, "verdict": verdict, "detail": detail, "weight": weight, "kind": kind})
     

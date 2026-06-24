@@ -31,11 +31,9 @@ def _revenue_growth(financials: dict, tickers: list[str]) -> dict[str, float]:
         entry = financials.get(t)
         if not entry or 'revenue' not in entry:
             continue
-        rev = entry['revenue'].dropna()
-        if len(rev) < 2 or rev.iloc[0] == 0:
-            continue
-        growth[t] = (rev.iloc[-1] - rev.iloc[0]) / abs(rev.iloc[0]) * 100
-
+        g = R.total_growth(entry['revenue'])
+        if g is not None:
+            growth[t] = g
     return growth
 
 def _stock_returns(prices: pd.DataFrame, tickers: list[str], method: str):

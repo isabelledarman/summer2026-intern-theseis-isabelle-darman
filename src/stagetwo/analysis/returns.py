@@ -51,3 +51,9 @@ def normalize_to_base(prices: pd.DataFrame, base: float = 100) -> pd.DataFrame:
         out[c] = prices[c] / clean.iloc[0] * base
 
     return pd.DataFrame(out)
+
+def total_growth(series: pd.Series) -> float | None:
+    s = series.dropna().sort_index()
+    if len(s) < 2 or s.iloc[0] == 0:
+            return None
+    return (s.iloc[-1] - s.iloc[0]) / abs(s.iloc[0]) * 100

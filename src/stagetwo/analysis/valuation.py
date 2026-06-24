@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import config
+from analysis import returns as R
 
 def _latest(series: pd.Series) -> float | None:
     s = series.dropna().sort_index()
@@ -99,14 +100,10 @@ def decompose_return(data, ticker: str) -> dict:
         out["note"] = "insufficient history"
         return out
     
-    def _naive(idx):
-        return idx.tz_localize(None) if getattr(idx, "tz", None) is not None else idx
-    
     def nearest(series, when):
         s = series.dropna().sort_index()
-        s.index = _naive(s.index)
-        w = when.tz_localize(None) if getattr(when, 'tz', None) is not None else when
-        idx = s.index.get_indexer([w], method="nearest")[0]
+       
+        idx = s.index.get_indexer([when], method="nearest")[0]
         return float(s.iloc[idx])
     
     t0, t1 = rev.index[0], rev.index[-1]
@@ -132,9 +129,7 @@ def valuation_table(data, tickers: list[str] | None = None, target_ps: float = 4
         entry = data.financials.get(t)
         rev_growth = None
         if entry and 'revenue' in entry:
-            r = entry['revenue'].dropna().sort_index()
-            if len(r) >= 2 and r.iloc[0] > 0: 
-                rev_growth = (r.iloc[-1] - r.iloc[0]) / r.iloc[0] * 100
+            rev_growth = R.total_growth(entry['revenue'])
         ps = ps_ratio(data, t)
         rows.append({
             "ticker": t,

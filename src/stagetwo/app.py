@@ -76,7 +76,7 @@ tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_verdict, tab_robust
 with tab_verdict:
     st.header(verdict['verdict'])
     c1, c2, c3 = st.columns(3)
-    c1.metric("Net Weighted Score", f"{verdict['score']:+0f}")
+    c1.metric("Net Weighted Score", f"{verdict['score']:+.0f}")
     c2.metric("Return Signals", f"{verdict['return_score']:+d}")
     c3.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
 
@@ -160,7 +160,7 @@ with tab_robust:
         c1, c2, c3 = st.columns(3)
         c1.metric("Slope 95% CI low", f"{boot.slope_ci[0]:.3f}")
         c2.metric("Slope 95% CI high", f"{boot.slope_ci[1]:.3f}")
-        c3.metric("Share positive slope", f"{boot.share_positive_slope:.05}")
+        c3.metric("Share positive slope", f"{boot.share_positive_slope:.0%}")
 
         if boot.slope_crosses_zero:
             st.warning("The 95% CI for slope include 0. The potivie relationship is not robust.")
@@ -209,7 +209,7 @@ with tab_valuation:
 
     if not s.empty:
         fig2 = go.Figure()
-        for grp, color in [("pure_play", "#4682b4"), ("diversified", "#888888")]:
+        for grp, color in [("pure_play", PURE_COLOR), ("diversified", DIV_COLOR)]:
             g = s[s["group"] == grp]
             fig2.add_trace(go.Scatter(x=g['rev_growth_%'], y=g['ps_ratio'], mode = "markers+text", text =g['ticker'], textposition="top center", name = grp, marker=dict(size = 13, color = color)))
 
