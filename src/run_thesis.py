@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+from analysis import regimes, regression, risk, robustness
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -10,7 +11,7 @@ import matplotlib.dates as mdates
 
 import config
 from data.loaders import load_market_data
-from analysis import regression, regimes, risk, robustness, scorecard
+from analysis import scorecard
 
 
 OUTPUT_DIR = "output"

@@ -1,3 +1,4 @@
+from analysis import regimes, regression, returns as R, risk, robustness, scorecard as sc
 import streamlit as st
 import datetime as dt
 import numpy as np
@@ -5,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import config
 from data.loaders import load_market_data
-from analysis import (regression, regimes, risk, robustness, scorecard as sc, returns as R, valuation)
+from analysis import (valuation)
 
 st.set_page_config(page_title="Space Economy Thesis", layout= "wide")
 
