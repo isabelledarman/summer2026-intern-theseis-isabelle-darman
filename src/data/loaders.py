@@ -109,6 +109,16 @@ def _load_financials(force: bool = False) -> tuple[dict, list[str], list[str]]:
                 entry['fcf'] = _clean_series(cf.loc['Free Cash Flow'])
 
             try:
+                bs = stock.balance_sheet
+
+                for key in ("Cash and Cash Equivalents", "Cash Cash Equivalents and Short Term Investments"):
+                    if key in bs.index:
+                        entry['cash'] = _clean_series(bs.loc[key])
+                        break
+            except Exception:
+                pass
+
+            try:
                 so = stock.get_shares_full(start=config.START_DATE)
                 if so is not None and len(so):
                     entry['shares'] = _clean_series(so)

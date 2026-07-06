@@ -1,4 +1,4 @@
-from analysis import regimes, regression, returns as R, risk, robustness, scorecard as sc
+from analysis import regimes, regression, returns as R, risk, robustness, scorecard as sc, profitability as prof
 import streamlit as st
 import datetime as dt
 import numpy as np
@@ -70,8 +70,8 @@ signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_
 verdict = sc.compute_verdict(signals)
 
 st.caption("Is the commercial space economy a legitimate invesatble theme or a long-duraction speculative bet?")
-tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_verdict, tab_robust = st.tabs(
-    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Verdict", "Robustness"]
+tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_profitability, tab_verdict, tab_robust = st.tabs(
+    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Profitability", "Verdict", "Robustness"]
 )
 
 with tab_verdict:
@@ -233,3 +233,49 @@ with tab_valuation:
     st.dataframe(vt, width = 'stretch', hide_index = True)
     if vt['ev_to_rev'].isna().all():
         st.caption("EV/Revenue is blank")
+
+with tab_profitability:
+    st.header("Is the business actually progressing?")
+    st.caption("Revenue growth isn't enough for this sector. Rising gross margins show the unit economics work; runway shows who survives long enough to deliver the story")
+
+    summary = prof.profitability_summary(data, selected_tickers)
+    c1, c2, c3, c4 = st.columns(4)
+
+    c1.metric("Margins Improving", summary["margins_improving"])
+    c2.metric("Margins Worsening", summary['margins_deteriorating'])    
+    c3.metric("Cash-Positive", summary["cash_positive"])
+    c4.metric("Burning Cash", summary["burning_cash"])
+
+    pt = prof.profitability_table(data, selected_tickers)
+
+    st.subheader("Gross Margin (Latest)")
+    st.caption("Bar = Current Gross Margin, Green = Margin Improved, Red = Margin Deteriorating")
+
+
+    m = pt.dropna(subset = ["gross_margin_%"]).sort_values("gross_margin_%")
+    if not m.empty:
+        colors = ["#3a9d52" if imp is True else "#e07a3f" for imp in m["margin_improving"]]
+        fig = go.Figure(go.Bar(x=m["gross_margin_%"], y=m["ticker"],
+                               orientation="h", marker_color=colors,
+                               text=m["margin_change_pp"].map(
+                                   lambda v: f"{v:+.0f}pp" if pd.notna(v) else ""),
+                               textposition="outside"))
+        fig.update_layout(xaxis_title="Gross margin (%)  \u2014  green improving / red worsening",
+                          height=480)
+        st.plotly_chart(fig, width="stretch")
+
+    st.subheader("Cash Runway (years until they must raise)")
+    st.caption("cash on hand / annual burn. Blank = cash-generative or no cash data. Short runway and Heavy dilution = survival risk")
+
+    rw = pt.dropna(subset=['runway_years']).sort_values("runway_years")
+    if not rw.empty:
+        colors = ["#4682b4" if g == "pure_play" else "888888" for g in rw['group']]
+        fig2 = go.Figure(go.Bar(x = rw["runway_years"], y = rw['ticker'], orientation = 'h', marker_color = colors))
+        fig2.add_cline(x = 2, line_dash = "dash", line_color = "red", annotation_text = '2 yrs')
+        fig2.update_layout(xaxis_title = "Runway (Years)", height = 420)
+        st.plotly_chart(fig2, width = 'stretch')
+    else:
+        st.info("No runway data yet")
+
+    st.subheader("Profitability Table")
+    st.dataframe(pt, width = "stretch", hide_index = True)

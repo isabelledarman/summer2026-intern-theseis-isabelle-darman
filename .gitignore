@@ -1,4 +1,3 @@
 .env
-src/stageone/charts/
-src/stagetwo/output/
-src/stagetwo/data/cache/
+src/output/
+src/data/cache/
