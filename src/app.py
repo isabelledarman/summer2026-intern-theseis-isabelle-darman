@@ -1,4 +1,4 @@
-from analysis import regimes, regression, returns as R, risk, robustness, scorecard as sc, profitability as prof
+from analysis import regimes, regression, returns as R, risk, robustness, scorecard as sc, profitability as prof, synthesis as syn, valuation
 import streamlit as st
 import datetime as dt
 import numpy as np
@@ -6,7 +6,6 @@ import pandas as pd
 import plotly.graph_objects as go
 import config
 from data.loaders import load_market_data
-from analysis import (valuation)
 
 st.set_page_config(page_title="Space Economy Thesis", layout= "wide")
 
@@ -70,9 +69,71 @@ signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_
 verdict = sc.compute_verdict(signals)
 
 st.caption("Is the commercial space economy a legitimate invesatble theme or a long-duraction speculative bet?")
-tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_profitability, tab_verdict, tab_robust = st.tabs(
-    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Profitability", "Verdict", "Robustness"]
+tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_profitability, tab_synthesis, tab_verdict, tab_robust = st.tabs(
+    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Profitability", "Synthesis", "Verdict", "Robustness"]
 )
+
+with tab_intro:
+    st.header("The Question")
+    st.markdown("**Launch costs have collapsed, satellite constellations are proliferating, and private capital is flooding into space infrastructure. This thesis evaluated "
+                "whether the commercial space economy is a legitimate investable theme in the 2020s or a long-duration speculative bet with no near-term cash flows.**\n\n"
+                "Have public space companies delivered shareholder returns backed by real business progress, or is the story still mostly narrative?")
+    
+    st.subheader("The Stance")
+    st.markdown("**Real, but not yet derisked, and more narrative than earned.**\n"
+                "Genuine businesses are emerging with a handful showing funamental driven returns and improving margins. "
+                "However, across the pure-play universise, more of the sharpe-price gains have come from multiple re-rating rather than from"
+                "operating progress, and the sector carries catastrophic drawdowns and heavy cash burn. "
+                "Investable as a high-risk thematic bet for some names, but ont yet a derisked sector")
+    
+    st.subheader("How to Read This Dashboard")
+    st.markdown("- **Valuation** - are prices justified by the business? P/S and a decomposition of returns into fundamentals vs. multiple re-rating. \n"
+                "- **Profitability** - is the business progressing? Gross-margin trend, cash burn, and runway. \n" \
+                "- **Synthesis** - the headline: per company, *earned* vs *narrative*. \n" \
+                "- **Risk** - were investors paid for the risk? Sharpe, drawdown, beta. \n" \
+                "- **Regression/Regimes** *(secondary)* - do fundamentals and interest rates relate to returns at all? Useful context, but macro is not the main sotry. \n"
+                "- **Verdict** - the weighted, documented bottom line. \n"
+                "- **Robustness** - how much to trust it (small-sample honesty)")
+    
+    st.subheader("Methodology and Choices")
+    st.markdown(f"- **Universe:** {len(config.PURE_PLAY)} pure-play + {len(config.DIVERSIFIED)} diversified aerospace names. These companies are classified by whether space is the core business.\n"
+                "- ** Returns:** annualized (CAGR) by default, so companies that listed at different dates are comparable and a common window is provided.\n"
+                "- **Valuation:** price-to-sales (most names are pre-profit, so P/E is not usable). Market cap is computed as shares * price for a true time series. \n"
+                "- **Return Decomposition:** price = P/S * sales-per-share, so return splits cleanly into fundamental (sales-per-sahre-growth) and re-reating (multiple change). \n"
+                "- **Risk Weighted x2** in the verdict: catastrophic drawdowns disqualify regardless of upside.\n"
+                "- **Caveats:** small sample (n = 16); annual revenue used as a TTM proxy; yFinance data quirks normalized where found. This is a weight of evidence read, not a statistical proof")
+    
+with tab_synthesis:
+    st.header("Earned or Narrative?")
+    st.caption("The thesis question, per company: did the return come from the business scaling (earned) or from investors paying a higher multiple (narrative)?"
+               "Combines the return decomposition with operating progress (margins, cash).")
+    
+    ssum = syn.synthesis_summary(data, selected_tickers)
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Earned", ssum['earned'])
+    c2.metric("Narrative", ssum['narrative'])
+    c3.metric("Mixed", ssum['mixed'])
+    c4.metric("Pure-plays", ssum['pure_play_total'])
+
+    stab = syn.synthesis_table(data, selected_tickers)
+    st.subheader("Share of return that was fundamental")
+    st.caption("Higher - More of the move came from business scaling \n" \
+    "Lower - More from multiple re-rating (narrative)")
+
+    sp = stab.dropna(subset = ['fundamental_share']).sort_values("fundamental_share")
+    if not sp.empty:
+        vmap = {"Earned": "#3a9d52", "Mixed": "#e0a53f", "Narrative": "#e07a3f"}
+        colors = [vmap.get(v, "#888888") for v in sp['verdict']]
+        fig = go.Figure(go.Bar(x=sp["fundamental_share"], y=sp["ticker"],
+                               orientation="h", marker_color=colors,
+                               text=sp["verdict"], textposition="outside"))
+        fig.update_layout(xaxis_title="Fundamental share of return (0-1)",
+                          height=520, xaxis_range=[0, 1.15])
+        st.plotly_chart(fig, width="stretch")
+
+    st.subheader("Per-Company Read")
+    st.dataframe(stab[['ticker', 'group', 'verdict', 'total_return_%', 'fundamental_%', 'rerating_%', 'margin_improving', 'fcf_positive', 'reason']], width = 'stretch', hide_index = True)
+
 
 with tab_verdict:
     st.header(verdict['verdict'])
@@ -81,6 +142,17 @@ with tab_verdict:
     c2.metric("Return Signals", f"{verdict['return_score']:+d}")
     c3.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
 
+    ssum = syn.synthesis_summary(data, selected_tickers)
+    earned, narrative, mixed = ssum['earned'], ssum['narrative'], ssum['pure_play_total']
+
+    st.subheader('The Thesis')
+
+    st.markdown(f"Across {ssum['pure_play_total']} pure-play space companies, **{ssum['earned']} show returns that were driven by fundamentals while"
+                f"**{ssum['narrative']} were **narrative**, driven mainly by multiple re-reating, and {ssum['mixed']} are mixed."
+                "On a risk basis, the sec remains punishing: pure-play drawdowns cluster far deeper than the mature aerospace names, and most are still burning cash. \n\n"
+                "**Bottom Line:** the commercial space economy is *real but not yet derisked.* A minority of names have delivered shareholder returns backed"
+                "by genuine business progress; for the majority, the market has paid up on expectation more than executio. It is investable today only as a high-risk, selective thematic bet.")
+    
     st.subheader("Signals")
     rows = []
     for s in signals:
@@ -269,9 +341,9 @@ with tab_profitability:
 
     rw = pt.dropna(subset=['runway_years']).sort_values("runway_years")
     if not rw.empty:
-        colors = ["#4682b4" if g == "pure_play" else "888888" for g in rw['group']]
+        colors = ["#4682b4" if g == "pure_play" else "#888888" for g in rw['group']]
         fig2 = go.Figure(go.Bar(x = rw["runway_years"], y = rw['ticker'], orientation = 'h', marker_color = colors))
-        fig2.add_cline(x = 2, line_dash = "dash", line_color = "red", annotation_text = '2 yrs')
+        fig2.add_vline(x = 2, line_dash = "dash", line_color = "red", annotation_text = '2 yrs')
         fig2.update_layout(xaxis_title = "Runway (Years)", height = 420)
         st.plotly_chart(fig2, width = 'stretch')
     else:

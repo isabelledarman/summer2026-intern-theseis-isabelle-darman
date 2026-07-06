@@ -68,7 +68,7 @@ def burn_and_runway(data, ticker: str) -> dict:
     if cash is None:
         out['note'] = "No cash data loaded"
     elif not burn or burn <= 0:
-        out["note"] - "cash-generative"
+        out["note"] = "cash-generative"
     else:
         years = cash/burn
         out['runway_years'] = years

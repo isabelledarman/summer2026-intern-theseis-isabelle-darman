@@ -1,3 +1,4 @@
 .env
 src/output/
 src/data/cache/
+src/analysis/__pycache__
