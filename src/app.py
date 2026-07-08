@@ -9,10 +9,55 @@ from data.loaders import load_market_data
 
 st.set_page_config(page_title="Space Economy Thesis", layout= "wide")
 
-PURE_COLOR = "#4682b4"
-DIV_COLOR = "#888888"
-ACCENT = "#e07a3f"
-st.title("Space Economy: Early Stage or Pipe Dream?")
+PURE_COLOR = "#3b7dd8"
+DIV_COLOR = "#94a3b8"
+EARNED_COLOR = "#22c55e"
+MIXED_COLOR = "#f59E0b"
+NARR_COLOR = "#ef4444"
+BG_CARD = "#f8fafc"
+CHART_HEIGHT = 520
+CHART_LAYOUT = dict(
+    font = dict(family = "Inter, system0ui, sans-serif", size = 13),
+    plot_bgcolor = "rgba(0,0,0,0)",
+    paper_bgcolor="rgba(0,0,0,0)",
+    margin=dict(l=20, r = 20, t = 40, b = 20),
+    hoverlabel=dict(font_size = 13)
+)
+
+VERDICT_COLORS = {
+    "Earned": EARNED_COLOR,
+    "Mixed": MIXED_COLOR,
+    "Narrative": NARR_COLOR
+}
+
+st.markdown("""
+<style>
+    .block-container{padding-top: 2rem; padding-bottom: 1rem}
+            
+    [data-testid="stMetric"]{
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+        padding: 14px 18px;
+    }
+    [data-testid="stMetricLabel"]{font-size: 0.82rem; color: #64848b}
+    [data-testid="stMetricValuation"]{font-size: 1.335rem; font-weight: 700}
+            
+    .stTabs [data-baseweb="tab-list] button{
+        font-weight:600;
+        font-size: 0.88rem;   
+    }
+            
+    .stDataFrame {border-radius: 6px}
+            
+    .stPlotlyChart{border: none !important}
+</style>
+""", unsafe_allow_html = True)
+
+st.markdown("""<h1 style = 'margin-bottom:0; '> Space Economy: Early Stage or Pipe Dream?</h1>
+            """, unsafe_allow_html= True)
+st.caption("Is the commercial space economy a legitimate investable theme or a long duration speculative bet?")
+
 
 #Cache the data loading so it only runs once
 @st.cache_data(show_spinner="Loading market data...")
@@ -21,7 +66,7 @@ def get_data(force: bool = False):
 
 st.sidebar.title("Controls")
 
-if st.sidebar.button("Refresh data (refetch)"):
+if st.sidebar.button("Refresh data"):
     get_data.clear()
     data = get_data(force= True)
 else:
@@ -29,14 +74,13 @@ else:
 
 st.sidebar.subheader("Universe")
 selected_pure_play = st.sidebar.multiselect(
-    "Selected pure-play space companies",
+    "Pure-Play Space Companies",
     config.PURE_PLAY,
     default = config.PURE_PLAY
 )
 
-st.sidebar.subheader("Diversified Aerospace")
 selected_diversified = st.sidebar.multiselect(
-    "Selected diversified companies",
+    "Diversified Aerospace",
     config.DIVERSIFIED,
     default=config.DIVERSIFIED
 )
@@ -45,12 +89,12 @@ selected_tickers = selected_pure_play + selected_diversified
 
 st.sidebar.subheader("Method")
 method = st.sidebar.selectbox("Return Convention", ["annualized", "common"])
-risk_weight = st.sidebar.slider("Risk-signal weight (verdict)", 1.0, 3.0, 2.0, 0.5, help = "How much risk signals count vs return signals")
-rf = st.sidebar.number_input("Risk-free rate (annual, decimal)", value = float(config.DEFAULT_RISK_FREE), step = 0.005, format = "%.3f")
-st.sidebar.subheader("Regime Cutoffs")
-high_cut = st.sidebar.date_input("High-rate era start", value = dt.date(2022, 3, 1))
-low_cut = st.sidebar.date_input("Cutting era starts", value=dt.date(2024, 9, 1))
+risk_weight = st.sidebar.slider("Risk-Signal Weight", 1.0, 3.0, 2.0, 0.5, help = "How much risk signals count relative to return signals")
+rf = st.sidebar.number_input("Risk-Free Rate (annual, decimal)", value = float(config.DEFAULT_RISK_FREE), step = 0.005, format = "%.3f")
 
+st.sidebar.subheader("Regime Cutoffs")
+high_cut = st.sidebar.date_input("High-Rate Era Start", value = dt.date(2022, 3, 1))
+low_cut = st.sidebar.date_input("Cutting Era Start", value=dt.date(2024, 9, 1))
 config.REGIME_HIGH_CUTOFF = str(high_cut)
 config.REGIME_LOW_CUTOFF = str(low_cut)
 
@@ -64,14 +108,15 @@ regime = regimes.run_regime_analysis(data, selected_tickers)
 risk_df = risk.risk_table(data.prices, selected_tickers, market = "SPY", rf=rf)
 spy_ann = R.annualized_return(data.prices["SPY"]) if "SPY" in data.prices.columns else 13.0
 spy_ann = spy_ann if spy_ann is not None else 13.0
+val_tab = valuation.valuation_table(data, selected_tickers)
+prof_sum = prof.profitability_summary(data, selected_tickers)
+syn_sum = syn.synthesis_summary(data, selected_tickers)
 
-signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_ann=spy_ann)
+signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_ann=spy_ann, val_table=val_tab, prof_summary=prof_sum, syn_summary=syn_sum)
 verdict = sc.compute_verdict(signals)
 
-st.caption("Is the commercial space economy a legitimate invesatble theme or a long-duraction speculative bet?")
-tab_intro, tab_reg, tab_regime, tab_risk, tab_valuation, tab_profitability, tab_synthesis, tab_verdict, tab_robust = st.tabs(
-    ["Intro", "Regression", "Regimes", "Risk", "Valuation", "Profitability", "Synthesis", "Verdict", "Robustness"]
-)
+tab_intro, tab_val, tab_prof, tab_syn, tab_risk, tab_verdict, tab_robust = st.tabs([
+    "Intro", "Valuation", "Profitability", "Synthesis", "Risk", "Verdict", "Robustness"])
 
 with tab_intro:
     st.header("The Question")
@@ -91,67 +136,76 @@ with tab_intro:
                 "- **Profitability** - is the business progressing? Gross-margin trend, cash burn, and runway. \n" \
                 "- **Synthesis** - the headline: per company, *earned* vs *narrative*. \n" \
                 "- **Risk** - were investors paid for the risk? Sharpe, drawdown, beta. \n" \
-                "- **Regression/Regimes** *(secondary)* - do fundamentals and interest rates relate to returns at all? Useful context, but macro is not the main sotry. \n"
                 "- **Verdict** - the weighted, documented bottom line. \n"
                 "- **Robustness** - how much to trust it (small-sample honesty)")
     
     st.subheader("Methodology and Choices")
     st.markdown(f"- **Universe:** {len(config.PURE_PLAY)} pure-play + {len(config.DIVERSIFIED)} diversified aerospace names. These companies are classified by whether space is the core business.\n"
-                "- ** Returns:** annualized (CAGR) by default, so companies that listed at different dates are comparable and a common window is provided.\n"
+                "- **Returns:** annualized (CAGR) by default, so companies that listed at different dates are comparable and a common window is provided.\n"
                 "- **Valuation:** price-to-sales (most names are pre-profit, so P/E is not usable). Market cap is computed as shares * price for a true time series. \n"
                 "- **Return Decomposition:** price = P/S * sales-per-share, so return splits cleanly into fundamental (sales-per-sahre-growth) and re-reating (multiple change). \n"
                 "- **Risk Weighted x2** in the verdict: catastrophic drawdowns disqualify regardless of upside.\n"
                 "- **Caveats:** small sample (n = 16); annual revenue used as a TTM proxy; yFinance data quirks normalized where found. This is a weight of evidence read, not a statistical proof")
     
-with tab_synthesis:
+with tab_syn:
     st.header("Earned or Narrative?")
-    st.caption("The thesis question, per company: did the return come from the business scaling (earned) or from investors paying a higher multiple (narrative)?"
+    st.caption("The thesis question, per company: did the return come from the business scaling (earned) or from investors paying a higher multiple (narrative)? "
                "Combines the return decomposition with operating progress (margins, cash).")
     
-    ssum = syn.synthesis_summary(data, selected_tickers)
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Earned", ssum['earned'])
-    c2.metric("Narrative", ssum['narrative'])
-    c3.metric("Mixed", ssum['mixed'])
-    c4.metric("Pure-plays", ssum['pure_play_total'])
+    c1.metric("Earned", syn_sum['earned'])
+    c2.metric("Narrative", syn_sum['narrative'])
+    c3.metric("Mixed", syn_sum['mixed'])
+    c4.metric("Pure-plays", syn_sum['pure_play_total'])
 
     stab = syn.synthesis_table(data, selected_tickers)
-    st.subheader("Share of return that was fundamental")
-    st.caption("Higher - More of the move came from business scaling \n" \
-    "Lower - More from multiple re-rating (narrative)")
+    st.subheader("Share of Return That was Fundamental")
+    st.caption("Higher → More of the move came from business scaling \n" \
+    "Lower → More from multiple re-rating (narrative)")
 
     sp = stab.dropna(subset = ['fundamental_share']).sort_values("fundamental_share")
     if not sp.empty:
-        vmap = {"Earned": "#3a9d52", "Mixed": "#e0a53f", "Narrative": "#e07a3f"}
-        colors = [vmap.get(v, "#888888") for v in sp['verdict']]
-        fig = go.Figure(go.Bar(x=sp["fundamental_share"], y=sp["ticker"],
-                               orientation="h", marker_color=colors,
-                               text=sp["verdict"], textposition="outside"))
-        fig.update_layout(xaxis_title="Fundamental share of return (0-1)",
-                          height=520, xaxis_range=[0, 1.15])
-        st.plotly_chart(fig, width="stretch")
+        colors = [VERDICT_COLORS.get(v, DIV_COLOR) for v in sp['verdict']]
+        fig = go.Figure(go.Bar(
+            x = sp['fundamental_share'], y = sp['ticker'], orientation ="h", marker_color = colors, text = sp['verdict'], textposition = 'outside'
+        ))
+        fig.update_layout(
+            **CHART_LAYOUT,
+            xaxis_title = "Fundamental Share of Return (0-1)",
+            height = CHART_HEIGHT, xaxis_range = [0, 1.15]
+        )
+        st.plotly_chart(fig, use_container_width = True)
 
     st.subheader("Per-Company Read")
-    st.dataframe(stab[['ticker', 'group', 'verdict', 'total_return_%', 'fundamental_%', 'rerating_%', 'margin_improving', 'fcf_positive', 'reason']], width = 'stretch', hide_index = True)
+    st.dataframe(stab[['ticker', 'group', 'verdict', 'total_return_%', 'fundamental_%', 'rerating_%', 'margin_improving', 'fcf_positive', 'reason']], use_container_width = True, hide_index = True)
 
 
 with tab_verdict:
-    st.header(verdict['verdict'])
-    c1, c2, c3 = st.columns(3)
+    _vcolor = (
+        EARNED_COLOR if "investable" in verdict['verdict'].lower()
+        else NARR_COLOR if "pipe dream" in verdict['verdict'].lower()
+        else MIXED_COLOR
+    )
+
+    st.markdown(f"<h2 style = 'color:{_vcolor}; margin-bottom: 0;'> {verdict['verdict']}</h2", unsafe_allow_html = True)
+
+
+    c1, c2, c3, c4 = st.columns(4)
     c1.metric("Net Weighted Score", f"{verdict['score']:+.0f}")
     c2.metric("Return Signals", f"{verdict['return_score']:+d}")
     c3.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
+    c4.metric("Max Possible", f"+/-{verdict['max_possible']:.0f}")
 
     ssum = syn.synthesis_summary(data, selected_tickers)
     earned, narrative, mixed = ssum['earned'], ssum['narrative'], ssum['pure_play_total']
 
     st.subheader('The Thesis')
 
-    st.markdown(f"Across {ssum['pure_play_total']} pure-play space companies, **{ssum['earned']} show returns that were driven by fundamentals while"
-                f"**{ssum['narrative']} were **narrative**, driven mainly by multiple re-reating, and {ssum['mixed']} are mixed."
-                "On a risk basis, the sec remains punishing: pure-play drawdowns cluster far deeper than the mature aerospace names, and most are still burning cash. \n\n"
-                "**Bottom Line:** the commercial space economy is *real but not yet derisked.* A minority of names have delivered shareholder returns backed"
-                "by genuine business progress; for the majority, the market has paid up on expectation more than executio. It is investable today only as a high-risk, selective thematic bet.")
+    st.markdown(f"Across {ssum['pure_play_total']} pure-play space companies, **{ssum['earned']} show returns that were driven by fundamentals while "
+                f"**{ssum['narrative']} were **narrative**, driven mainly by multiple re-reating, and {ssum['mixed']} are mixed. "
+                "On a risk basis, the sect remains punishing: pure-play drawdowns cluster far deeper than the mature aerospace names, and most are still burning cash. \n\n"
+                "**Bottom Line:** the commercial space economy is *real but not yet derisked.* A minority of names have delivered shareholder returns backed "
+                "by genuine business progress; for the majority, the market has paid up on expectation more than execution. It is investable today only as a high-risk, selective thematic bet.")
     
     st.subheader("Signals")
     rows = []
@@ -160,72 +214,74 @@ with tab_verdict:
         rows.append({"Signal": s['name'], "Read": mark, "Detail": s["detail"], "Weight": s['weight'], "Kind": s["kind"]})
     st.dataframe(pd.DataFrame(rows), width='stretch', hide_index = True)
 
-with tab_reg:
-    st.header("Does revenue growth predict returns?")
-    c1, c2, c3 = st.columns(3)
-    c1.metric("R\u00b2", f"{reg.r_squared:.3f}" if reg.r_squared is not None else "N/A")
-    c2.metric("p-value", f"{reg.p_value:.3f}" if reg.p_value is not None else "N/A")
-    c3.metric('n', reg.n)
+    with st.expander("Supporting Context: Regression & Regime Detail"):
+        st.markdown("**Revenue Growth Leads to Stock Return Regression**")
+        rc1, rc2, rc3 = st.columns(3)
+        rc1.metric("R\u00b2", f"{reg.r_squared:.3f}" if reg.r_squared is not None else "N/A")
+        rc2.metric("p-value", f"{reg.p_value:.3f}" if reg.p_value is not None else "N/A")
+        rc3.metric('n', reg.n)
 
-    df = reg.df
-    if not df.empty:
-        fig = go.Figure()
-        for grp, color in [("pure_play", PURE_COLOR), ("diversified", DIV_COLOR)]:
-            g = df[df["group"] == grp]
-            fig.add_trace(go.Scatter(
-                x = g["revenue_growth"], y = g["stock_return"], mode = "markers+text", text = g["ticker"], textposition = "top center", name = grp, marker=dict(size = 14, color = color)))
-        if reg.slope is not None:
-            xs = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'].max() + 20, 100)
-            fig.add_trace(go.Scatter(x=xs, y= reg.slope*xs + reg.intercept, mode="lines", name=f"Fit (R\u00b2 = {reg.r_squared:.2f})",
-                                         line = dict(color = "black", dash = "dash")))
-        fig.update_layout(xaxis_title = "Revenue Growth (%)", yaxis_title = f"Stock Return (%, {method})", height = 560, hovermode = "closest")
-        st.plotly_chart(fig, width='stretch')
+        df = reg.df
+        if not df.empty:
+            fig = go.Figure()
+            for grp, color in [("pure_play", PURE_COLOR), ("diversified", DIV_COLOR)]:
+                g = df[df["group"] == grp]
+                fig.add_trace(go.Scatter(
+                    x = g["revenue_growth"], y = g["stock_return"], mode = "markers+text", text = g["ticker"], textposition = "top center", name = grp, marker=dict(size = 14, color = color)))
+            if reg.slope is not None:
+                xs = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'].max() + 20, 100)
+                fig.add_trace(go.Scatter(x=xs, y= reg.slope*xs + reg.intercept, mode="lines", name=f"Fit (R\u00b2 = {reg.r_squared:.2f})",
+                                            line = dict(color = "black", dash = "dash")))
+            fig.update_layout(**CHART_LAYOUT, xaxis_title = "Revenue Growth (%)", yaxis_title = f"Stock Return (%, {method})", height = CHART_HEIGHT, hovermode = "closest")
+            st.plotly_chart(fig, use_container_width = True)
 
-        if reg.low_power:
-            st.warning(f"n = {reg.n} is small, treat the p-value as suggestive.")
+            if reg.low_power:
+                st.warning(f"n = {reg.n} is small, treat the p-value as suggestive.")
+
+        st.markdown("**Returns Across Interest-Rate Regimes**")
+        rc1, rc2 = st.columns(2)
+        rc1.metric("t-statistic", f"{regime.t_stat:.3f}" if regime.t_stat is not None else "N/A")
+        rc2.metric("p-value", f"{regime.p_value:.3f}" if regime.p_value is not None else "N/A")
+
+        rdf = regime.regime_df
+        if not rdf.empty:
+            fig = go.Figure()
+            palette = [PURE_COLOR, NARR_COLOR, EARNED_COLOR]
+            for col, color in zip(rdf.columns, palette):
+                fig.add_trace(go.Bar(x=rdf.index, y = rdf[col], name = col, marker_color = color))
+            fig.update_layout(**CHART_LAYOUT, barmode = "group", yaxis_title = "Return (%)", height = CHART_HEIGHT)
+            st.plotly_chart(fig, use_container_width = True)
+
+        if regime.space_index is not None and regime.spy is not None:
+            st.subheader("**Space Sector vs S&P 500**")
+            fig2 = go.Figure()
+            fig2.add_trace(go.Scatter(x=regime.space_index.index, y=regime.space_index.values, name = "Space (equal weighted)", line = dict(color = PURE_COLOR)))
+            fig2.add_trace(go.Scatter(x = regime.spy.index, y = regime.spy.values, name = "S&p 500", line = dict(color = "black", dash = "dash")))
+            fig2.update_layout(**CHART_LAYOUT, yaxis_title = "Indexed (100 = Start)", height = CHART_HEIGHT)
+            st.plotly_chart(fig2, use_container_width = True)
+
+        for n in regime.notes:
+            st.caption(n)
+            
+
         
 with tab_risk:
     st.header("Risk-Adjusted Returns")
-    st.caption("Sharpe = retunr per unit of total volatility. Sortino penalizes only downside. Max drawdown = worst peak-to-trough loss.")
+    st.caption("Sharpe = return per unit of total volatility. Sortino penalizes only downside. \nMax drawdown = worst peak-to-trough loss.")
     d = risk_df.dropna(subset=["sharpe"]).sort_values("sharpe")
     if not d.empty:
         color = [PURE_COLOR if g == "pure_play" else DIV_COLOR for g in d["group"]]
         fig = go.Figure(go.Bar(x=d["sharpe"], y = d["ticker"], orientation = "h", marker_color = color))
-        fig.add_vline(x=1, line_dash = "dash", line_color = "green", annotation_text="Sharpe = 1")
-        fig.update_layout(xaxis_title = "Sharpe Ratio", height = 500)
-        st.plotly_chart(fig, width = 'stretch')
+        fig.add_vline(x=1, line_dash = "dash", line_color = EARNED_COLOR, annotation_text="Sharpe = 1")
+        fig.update_layout(**CHART_LAYOUT, xaxis_title = "Sharpe Ratio", height = CHART_HEIGHT)
+        st.plotly_chart(fig, use_container_width = True)
 
     st.subheader("Full Risk Table")
-    st.dataframe(risk_df, width='stretch', hide_index = True)
+    st.dataframe(risk_df, use_container_width = True, hide_index = True)
 
-with tab_regime:
-    st.header("Returns across interest-rate regimes")
-    c1, c2 = st.columns(2)
-    c1.metric("t-statistic", f"{regime.t_stat:.3f}" if regime.t_stat is not None else "N/A")
-    c2.metric("p-value", f"{regime.p_value:.3f}" if regime.p_value is not None else "N/A")
-
-    rdf = regime.regime_df
-    if not rdf.empty:
-        fig = go.Figure()
-        palette = [PURE_COLOR, ACCENT, "#3a9d52"]
-        for col, color in zip(rdf.columns, palette):
-            fig.add_trace(go.Bar(x=rdf.index, y = rdf[col], name = col, marker_color = color))
-        fig.update_layout(barmode = "group", yaxis_title = "Return (%)", height = 480)
-        st.plotly_chart(fig, width = 'stretch')
-
-    if regime.space_index is not None and regime.spy is not None:
-        st.subheader("Space Sector vs S&P 500")
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(x=regime.space_index.index, y=regime.space_index.values, name = "Space (equal weighted)", line = dict(color = PURE_COLOR)))
-        fig2.add_trace(go.Scatter(x = regime.spy.index, y = regime.spy.values, name = "S&p 500", line = dict(color = "black", dash = "dash")))
-        fig2.update_layout(yaxis_title = "Indexed (100 = Start)", height = 460)
-        st.plotly_chart(fig2, width = "stretch")
-
-    for n in regime.notes:
-        st.caption(n)
 
 with tab_robust:
-    st.header("How much should you trust this?")
+    st.header("How Much Should You Trust This?")
     st.subheader("Bootstrap (resampling the companies)")
     boot = robustness.bootstrap_regression(data, selected_tickers, method = method, n_boot = 5000)
 
@@ -243,15 +299,18 @@ with tab_robust:
     for n in boot.notes:
         st.caption(n)
 
-    st.subheader("Leave-out influence (which names carry the results?)")
+    st.subheader("Leave-Out Influence (which names carry the results?)")
     jk = robustness.jackknife_regression(data, selected_tickers, method = method)
     if not jk.empty:
         st.dataframe(jk, width='stretch', hide_index = True)
 
     top = robustness.drop_top_performers(data, k = 2, selected_tickers=selected_tickers, method=method)
-    st.write(f"**Drop top 2 ({top.get('dropped')}):** slope "
-             f"{top.get('slope_full'):.3f} \u2192 {top.get('slope_without_top'):.3f}"
-             f"{top.get('note')}")
+    if isinstance(top.get("slope_full"), (int, float)):
+        st.write(f"**Drop top 2 ({top.get('dropped')}):** slope "
+                f"{top.get('slope_full'):.3f} \u2192 {top.get('slope_without_top'):.3f}"
+                f"{top.get('note')}")
+    else:
+        st.write(top.get('note', ""))
     
     st.subheader("Return-Convention Robustness")
     st.dataframe(robustness.convention_robustness(data, selected_tickers), width='stretch', hide_index = True)
@@ -259,24 +318,25 @@ with tab_robust:
     st.caption("Does the regime story survive moving the cutoff dates?")
     st.dataframe(robustness.regime_data_sensitivity(data, selected_tickers), width='stretch', hide_index = True)
 
-with tab_valuation:
-    st.header("Is the price justified by the business?")
-    st.caption("Market cap is computed as shares * price so P/S is real and time-varying. The decomposition splits each stock's move into business growth vs. multiple re-reating")
+with tab_val:
+    st.header("Is Tte Price Justified by the bBsiness?")
+    st.caption("Market cap is computed as shares x price so P/S is real and time-varying. The decomposition splits each stock's move into business growth vs. multiple re-reating.")
+    
     cset1, cset2 = st.columns(2)
 
-    target_ps = cset1.slider("'Normal' P/S to grow into", 1.0, 10.0, 4.0, 0.5)
-    years = cset2.slider("Years to normalize", 1, 10, 5)
+    target_ps = cset1.slider("'Normal' P/S to Grow Into", 1.0, 10.0, 4.0, 0.5)
+    years = cset2.slider("Years to Mormalize", 1, 10, 5)
     vt = valuation.valuation_table(data, selected_tickers, target_ps=target_ps, years=years)
     
     st.subheader("Price-to-Sales Multiple")
     d = vt.dropna(subset=['ps_ratio']).sort_values('ps_ratio')
     if not d.empty:
-        colors = ['#4682b4' if g == 'pure_play' else '#888888' for g in d['group']]
+        colors = [PURE_COLOR if g == 'pure_play' else DIV_COLOR for g in d['group']]
         fig = go.Figure(go.Bar(x=d['ps_ratio'], y = d['ticker'], orientation = 'h', marker_color = colors))
-        fig.update_layout(xaxis_title = "P/S (market cap / revenue)", height = 460)
-        st.plotly_chart(fig, width = 'stretch')
+        fig.update_layout(**CHART_LAYOUT, xaxis_title = "P/S (market cap / revenue)", height = CHART_HEIGHT)
+        st.plotly_chart(fig, use_container_width = True)
 
-    st.subheader("Priced for perfection?")    
+    st.subheader("Priced for Perfection?")    
     st.caption("Top-left = expensive but slow growing (danger). Bottom-right = cheap to relative growth") 
     s = vt.dropna(subset=['ps_ratio', 'rev_growth_%'])
 
@@ -284,30 +344,30 @@ with tab_valuation:
         fig2 = go.Figure()
         for grp, color in [("pure_play", PURE_COLOR), ("diversified", DIV_COLOR)]:
             g = s[s["group"] == grp]
-            fig2.add_trace(go.Scatter(x=g['rev_growth_%'], y=g['ps_ratio'], mode = "markers+text", text =g['ticker'], textposition="top center", name = grp, marker=dict(size = 13, color = color)))
+            fig2.add_trace(go.Scatter(x=g['rev_growth_%'], y=g['ps_ratio'], mode = "markers+text", text =g['ticker'], textposition="top center", name = grp, marker=dict(size = 14, color = color)))
 
-        fig2.update_layout(xaxis_title = "Revenue Growth (%)", yaxis_title="P/S Multiple", height = 520)
+        fig2.update_layout(**CHART_LAYOUT, xaxis_title = "Revenue Growth (%)", yaxis_title="P/S Multiple", height = CHART_HEIGHT)
         st.plotly_chart(fig2, width = 'stretch')
 
-    st.subheader("What drove the returns: Business or the Multiple")
+    st.subheader("What Drove the Returns: Business or the Multiple?")
     st.caption("Fundamental = sales-per-share growth. Re-rating = change in P/S. Returns built mostly on re-reating are the speculation tell.")
 
     dec = valuation.decomposition_table(data, selected_tickers).dropna(subset=['fundamental_%', 'rerating_%'])    
     if not dec.empty:
         fig3 = go.Figure()
-        fig3.add_trace(go.Bar(x=dec['ticker'], y = dec['fundamental_%'], name = "Funamental (sales/share)", marker_color = "#3a9d52"))
-        fig3.add_trace(go.Bar(x=dec['ticker'], y=dec['rerating_%'], name = "Multiple Re-Rating", marker_color="#e07a3f"))
-        fig3.update_layout(barmode='relative', yaxis_title='Contribution to Return (%)', height = 480)
-        st.plotly_chart(fig3, width = 'stretch')
-        st.dataframe(dec[['ticker', 'group', 'total_return_%', 'fundamental_%', 'rerating_%']], width = 'stretch', hide_index = True)
+        fig3.add_trace(go.Bar(x=dec['ticker'], y = dec['fundamental_%'], name = "Funamental (sales/share)", marker_color = EARNED_COLOR))
+        fig3.add_trace(go.Bar(x=dec['ticker'], y=dec['rerating_%'], name = "Multiple Re-Rating", marker_color=NARR_COLOR))
+        fig3.update_layout(**CHART_LAYOUT, barmode='relative', yaxis_title='Contribution to Return (%)', height = CHART_HEIGHT)
+        st.plotly_chart(fig3, use_container_width = True)
+        st.dataframe(dec[['ticker', 'group', 'total_return_%', 'fundamental_%', 'rerating_%']], use_container_width = True, hide_index = True)
 
     st.subheader('Valuation Table')
-    st.dataframe(vt, width = 'stretch', hide_index = True)
+    st.dataframe(vt, use_container_width = True, hide_index = True)
     if vt['ev_to_rev'].isna().all():
         st.caption("EV/Revenue is blank")
 
-with tab_profitability:
-    st.header("Is the business actually progressing?")
+with tab_prof:
+    st.header("Is the Business Actually Progressing?")
     st.caption("Revenue growth isn't enough for this sector. Rising gross margins show the unit economics work; runway shows who survives long enough to deliver the story")
 
     summary = prof.profitability_summary(data, selected_tickers)
@@ -321,33 +381,33 @@ with tab_profitability:
     pt = prof.profitability_table(data, selected_tickers)
 
     st.subheader("Gross Margin (Latest)")
-    st.caption("Bar = Current Gross Margin, Green = Margin Improved, Red = Margin Deteriorating")
+    st.caption("Green = Margin Improved, Red = Margin Deteriorating")
 
 
     m = pt.dropna(subset = ["gross_margin_%"]).sort_values("gross_margin_%")
     if not m.empty:
-        colors = ["#3a9d52" if imp is True else "#e07a3f" for imp in m["margin_improving"]]
+        colors = [EARNED_COLOR if imp is True else NARR_COLOR for imp in m["margin_improving"]]
         fig = go.Figure(go.Bar(x=m["gross_margin_%"], y=m["ticker"],
                                orientation="h", marker_color=colors,
                                text=m["margin_change_pp"].map(
                                    lambda v: f"{v:+.0f}pp" if pd.notna(v) else ""),
                                textposition="outside"))
-        fig.update_layout(xaxis_title="Gross margin (%)  \u2014  green improving / red worsening",
-                          height=480)
-        st.plotly_chart(fig, width="stretch")
+        fig.update_layout(**CHART_LAYOUT, xaxis_title="Gross margin (%)  -  green improving / red worsening",
+                          height=CHART_HEIGHT)
+        st.plotly_chart(fig, use_container_width = True)
 
     st.subheader("Cash Runway (years until they must raise)")
-    st.caption("cash on hand / annual burn. Blank = cash-generative or no cash data. Short runway and Heavy dilution = survival risk")
+    st.caption("Cash on hand / annual burn. Blank = cash-generative or no cash data. Short runway and heavy dilution = survival risk")
 
     rw = pt.dropna(subset=['runway_years']).sort_values("runway_years")
     if not rw.empty:
-        colors = ["#4682b4" if g == "pure_play" else "#888888" for g in rw['group']]
+        colors = [PURE_COLOR if g == "pure_play" else DIV_COLOR for g in rw['group']]
         fig2 = go.Figure(go.Bar(x = rw["runway_years"], y = rw['ticker'], orientation = 'h', marker_color = colors))
-        fig2.add_vline(x = 2, line_dash = "dash", line_color = "red", annotation_text = '2 yrs')
-        fig2.update_layout(xaxis_title = "Runway (Years)", height = 420)
-        st.plotly_chart(fig2, width = 'stretch')
+        fig2.add_vline(x = 2, line_dash = "dash", line_color = NARR_COLOR, annotation_text = '2 yrs')
+        fig2.update_layout(**CHART_LAYOUT, xaxis_title = "Runway (Years)", height = CHART_HEIGHT)
+        st.plotly_chart(fig2, use_container_width = True)
     else:
         st.info("No runway data yet")
 
     st.subheader("Profitability Table")
-    st.dataframe(pt, width = "stretch", hide_index = True)
+    st.dataframe(pt, use_container_width = True, hide_index = True)

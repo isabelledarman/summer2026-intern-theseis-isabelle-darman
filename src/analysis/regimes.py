@@ -5,10 +5,10 @@ import config
 from analysis import returns as R
 
 def _high_cutoff() -> str:
-    return getattr(config, "REGIME_HIGH_CUTOFF", getattr(config, "REGIME_LOW_HIGh_CUTOFF", '2022-03-01'))
+    return getattr(config, "REGIME_HIGH_CUTOFF", '2022-03-01')
 
 def _cut_cutoff()->str:
-    return getattr(config, "REGIME_LOW_CUTOFF", getattr(config, "REGIME_HIGH_CUT_CUTOFF", '2024-09-01'))   
+    return getattr(config, "REGIME_LOW_CUTOFF", '2024-09-01')   
 
 @dataclass
 class RegimeResult:

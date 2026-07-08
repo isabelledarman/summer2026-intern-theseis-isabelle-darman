@@ -31,7 +31,7 @@ def classify_company(data, ticker: str) -> dict:
         "rerating_%": dec.get("rerating_%"),
         "fundamental_share": None,
         "margin_improving": gm.get("improving"),
-        "fcf_positive": br.get("fcf_prositive"),
+        "fcf_positive": br.get("fcf_positive"),
         "runway_years": br.get("runway_years"),
         "verdict": "insufficient data",
         "reason": "",
@@ -61,7 +61,7 @@ def classify_company(data, ticker: str) -> dict:
         out['reason'] = 'partial fundamental support with some operating progress'
     else:
         out['verdict'] = 'Narrative'
-        out['reacon'] = 'returns came mostly from multiple re-rating with weak fundamental/operating support'
+        out['reason'] = 'returns came mostly from multiple re-rating with weak fundamental/operating support'
 
     return out
 

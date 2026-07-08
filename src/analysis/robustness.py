@@ -118,9 +118,9 @@ def drop_top_performers(data, k: int = 2, selected_tickers: list[str] | None = N
         "r2_without_top": lr.rvalue ** 2,
         "p_without_top": lr.pvalue,
         "sign_flipped": bool(flipped),
-        "note": ("Slope sign flipes w/o top performers, relationship driven by winners"
+        "note": ("Slope sign flips w/o top performers, relationship driven by winners"
             if flipped else
-            "Slope  keeps its sign, more robust")
+            "Slope keeps its sign, more robust")
     }
 
 def regime_data_sensitivity(data, selected_tickers: list[str] | None = None, high_cuts: list[str] | None = None, low_cuts: list[str] | None = None
