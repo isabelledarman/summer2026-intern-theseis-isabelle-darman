@@ -15,51 +15,171 @@ EARNED_COLOR = "#22c55e"
 MIXED_COLOR = "#f59E0b"
 NARR_COLOR = "#ef4444"
 BG_CARD = "#f8fafc"
+NEUTRAL = "#64748b"
+BORDER = "#e2e8f0"
+
 CHART_HEIGHT = 520
 CHART_LAYOUT = dict(
-    font = dict(family = "Inter, system0ui, sans-serif", size = 13),
+    font = dict(family = "Inter, system0ui, sans-serif", size = 13, color = "#1e293b"),
     plot_bgcolor = "rgba(0,0,0,0)",
     paper_bgcolor="rgba(0,0,0,0)",
-    margin=dict(l=20, r = 20, t = 40, b = 20),
-    hoverlabel=dict(font_size = 13)
+    margin=dict(l=20, r = 20, t = 36, b = 10),
+    hoverlabel=dict(font_size = 13, bgcolor = 'white'),
+    xaxis=dict(gridcolor="#f1f5f9", zerolinecolor="#cbd5e1"),
+    yaxis=dict(gridcolor="#f1f5f9", zerolinecolor="#cbd5e1")
 )
 
 VERDICT_COLORS = {
     "Earned": EARNED_COLOR,
     "Mixed": MIXED_COLOR,
-    "Narrative": NARR_COLOR
+    "Narrative": NARR_COLOR,
+    "insufficient data": NEUTRAL
 }
 
 st.markdown("""
 <style>
-    .block-container{padding-top: 2rem; padding-bottom: 1rem}
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+    html, body, [class*='css']{ font-family: 'Inter', sustem-ui, sans-serif; }        
+    .block-container{padding-top: 1.5rem; padding-bottom: 1rem; max-width: 1200px}
+            
+    .thesis-header{
+        background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%);
+        color: white;
+        padding: 2rem 2.5rem;
+        border-radius: 12px;
+        maring-bottom: 1.5rem
+    }
+            
+    .thesis-header h1{
+        font-size: 1.75rem;
+        font-weight: 700;
+        margin: 0 0 0.35rem 0;
+        letter-spacing: -0.02em;
+    }
+            
+    .thesis-header p {
+        font-size: 0.95rem;
+        color: #94a3b8;
+        margin: 0
+    }
             
     [data-testid="stMetric"]{
-        background: #f8fafc;
+        background: white;
         border: 1px solid #e2e8f0;
-        border-radius: 8px;
+        border-radius: 10px;
+        padding: 14px 20px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0, 0,04);
+    }
+            
+    [data-testid="stMetricLabel"]{
+        font-size: 0.78rem;
+        font-weight: 500;
+        color: #64848b;
+        text-transform: uppercase;
+        letter-spacing: 0.04em
+    }
+    [data-testid="stMetricValuation"]{font-size: 1.4rem; font-weight: 700; color: #0f172a}
+            
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 0;
+        border-bottom: 2px solid #E2E8F0;
+    }
+    .stTabs [data-baseweb="tab-list"] button {
+        font-weight: 600;
+        font-size: 0.85rem;
+        padding: 0.6rem 1.2rem;
+        color: #64748B;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -2px;
+    }
+    .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] {
+        color: #3B7DD8;
+        border-bottom-color: #3B7DD8;
+    }
+ 
+    /* Dataframes */
+    .stDataFrame { border-radius: 8px; overflow: hidden; }
+ 
+    /* Expanders */
+    .streamlit-expanderHeader {
+        font-weight: 600;
+        font-size: 0.9rem;
+        color: #475569;
+    }
+ 
+    /* Verdict banner */
+    .verdict-banner {
+        padding: 1.5rem 2rem;
+        border-radius: 12px;
+        margin-bottom: 1rem;
+        border-left: 5px solid;
+    }
+    .verdict-banner h2 {
+        font-size: 1.35rem;
+        font-weight: 700;
+        margin: 0 0 0.25rem 0;
+    }
+    .verdict-banner p {
+        font-size: 0.9rem;
+        margin: 0;
+        opacity: 0.85;
+    }
+ 
+    /* Signal row styling */
+    .signal-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0.75rem;
+        margin: 1rem 0;
+    }
+    .signal-card {
+        background: white;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
         padding: 14px 18px;
+        display: flex;
+        align-items: flex-start;
+        gap: 12px;
     }
-    [data-testid="stMetricLabel"]{font-size: 0.82rem; color: #64848b}
-    [data-testid="stMetricValuation"]{font-size: 1.335rem; font-weight: 700}
-            
-    .stTabs [data-baseweb="tab-list] button{
-        font-weight:600;
-        font-size: 0.88rem;   
+    .signal-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+    .signal-name { font-weight: 600; font-size: 0.88rem; color: #0F172A; }
+    .signal-detail { font-size: 0.8rem; color: #64748B; margin-top: 2px; }
+    .signal-weight {
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: white;
+        background: #3B7DD8;
+        border-radius: 4px;
+        padding: 1px 6px;
+        margin-left: 6px;
     }
-            
-    .stDataFrame {border-radius: 6px}
-            
-    .stPlotlyChart{border: none !important}
+ 
+    /* Section dividers */
+    .section-intro {
+        background: #F8FAFC;
+        border: 1px solid #E2E8F0;
+        border-radius: 10px;
+        padding: 1.25rem 1.5rem;
+        margin-bottom: 1.25rem;
+        font-size: 0.92rem;
+        color: #334155;
+        line-height: 1.6;
+    }
+ 
+    /* Hide Streamlit branding */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html = True)
 
-st.markdown("""<h1 style = 'margin-bottom:0; '> Space Economy: Early Stage or Pipe Dream?</h1>
+st.markdown("""
+            <div class = "thesis-header">
+                <h1> Space Economy: Early Stage or Pipe Dream?</h1>
+                <p>Is the commercial space economy a legitimate investable theme or a long duration speculative bet?</p>
+            </div>
             """, unsafe_allow_html= True)
-st.caption("Is the commercial space economy a legitimate investable theme or a long duration speculative bet?")
 
-
-#Cache the data loading so it only runs once
 @st.cache_data(show_spinner="Loading market data...")
 def get_data(force: bool = False):
     return load_market_data(force=force)
@@ -115,14 +235,129 @@ syn_sum = syn.synthesis_summary(data, selected_tickers)
 signals = sc.build_scorecard(reg, regime, risk_df, risk_weight=risk_weight, spy_ann=spy_ann, val_table=val_tab, prof_summary=prof_sum, syn_summary=syn_sum)
 verdict = sc.compute_verdict(signals)
 
+def build_dynamic_verdict(v: dict, signals: list, syn: dict, prof: dict, risk_df: pd.DataFrame) -> str:
+    pure = risk_df[risk_df['group'] == 'pure_play']
+    total = syn.get("pure_play_total", 0)
+    earned = syn.get("earned", 0)
+    narrative = syn.get("narrative", 0)
+    mixed = syn.get("mixed", 0)
+    margins_up = prof.get("margins_improving", 0)
+    margins_down = prof.get("margins_deteriorating", 0)
+    cash_pos = prof.get("cash_positive", 0)
+    burning = prof.get("burning_cash", 0)
+    med_dd = pure["max_drawdown_%"].median() if not pure.empty else None
+    med_sharpe = pure['sharpe'].median() if not pure.empty else None
+
+    parts = []
+
+    if earned > narrative:
+        parts.append(
+            f"Across {total} pure-play space companies, the weight of evidence "
+            f"tilts toward earned returns: **{earned}** companies show returns "
+            f"driven primarily by business fundamentals, versus **{narrative}** "
+            f"that are narrative-driven."
+        )
+    elif narrative > earned:
+        parts.append(
+            f"Across {total} pure-play space companies, the majority of returns "
+            f"remain narrative-driven: **{narrative}** companies owe their gains "
+            f"mainly to multiple re-rating, while only **{earned}** show returns "
+            f"grounded in business fundamentals."
+        )
+    else:
+        parts.append(
+            f"Across {total} pure-play space companies, the picture is evenly "
+            f"split: **{earned}** earned, **{narrative}** narrative, "
+            f"**{mixed}** mixed."
+        )
+ 
+    # Profitability color
+    if margins_up > margins_down:
+        parts.append(
+            f"On the operations side, there's genuine progress — "
+            f"**{margins_up}** names are improving gross margins versus "
+            f"**{margins_down}** deteriorating."
+        )
+    elif margins_down > margins_up:
+        parts.append(
+            f"Operating progress is weak: **{margins_down}** companies show "
+            f"deteriorating margins versus only **{margins_up}** improving."
+        )
+ 
+    # Cash burn
+    if burning > cash_pos:
+        parts.append(
+            f"Cash burn is the norm — **{burning}** are still burning through "
+            f"reserves versus **{cash_pos}** that are cash-flow positive."
+        )
+    elif cash_pos > burning:
+        parts.append(
+            f"Cash generation is a bright spot: **{cash_pos}** names are "
+            f"cash-flow positive, outnumbering the **{burning}** still burning."
+        )
+ 
+    # Risk color
+    if med_dd is not None:
+        if med_dd < -80:
+            parts.append(
+                f"Risk remains severe — the median pure-play peak-to-trough "
+                f"drawdown is **{med_dd:.0f}%**, deep enough to wipe out "
+                f"most position sizes."
+            )
+        elif med_dd < -60:
+            parts.append(
+                f"Risk is elevated: the median pure-play drawdown of "
+                f"**{med_dd:.0f}%** is far deeper than typical equity drawdowns."
+            )
+        else:
+            parts.append(
+                f"Drawdown risk is moderate — the median pure-play max "
+                f"drawdown of **{med_dd:.0f}%** is within range for "
+                f"growth-stage companies."
+            )
+ 
+    # Bottom-line sentence based on the verdict category
+    vtext = v["verdict"].lower()
+    if "investable" in vtext:
+        parts.append(
+            "**Bottom line:** the evidence currently supports this as an "
+            "investable theme — fundamentals are beginning to justify the prices "
+            "for enough names to build a selective allocation."
+        )
+    elif "pipe dream" in vtext:
+        parts.append(
+            "**Bottom line:** at this stage, the sector looks more speculative "
+            "than investable — returns are dominated by narrative, risk is "
+            "uncompensated, and operating progress is too thin."
+        )
+    elif "derisked" in vtext:
+        parts.append(
+            "**Bottom line:** the commercial space economy is *real but not yet "
+            "derisked.* Genuine businesses are emerging, but the risk profile is "
+            "too severe to treat this as a broad sector bet. Investable only as a "
+            "high-risk, selective thematic allocation."
+        )
+    else:
+        parts.append(
+            "**Bottom line:** the evidence is genuinely mixed. Neither bullish nor "
+            "bearish signals dominate — the thesis depends on which names you pick "
+            "and how much drawdown risk you can stomach."
+        )
+ 
+    return " ".join(parts)
+
 tab_intro, tab_val, tab_prof, tab_syn, tab_risk, tab_verdict, tab_robust = st.tabs([
     "Intro", "Valuation", "Profitability", "Synthesis", "Risk", "Verdict", "Robustness"])
 
 with tab_intro:
     st.header("The Question")
-    st.markdown("**Launch costs have collapsed, satellite constellations are proliferating, and private capital is flooding into space infrastructure. This thesis evaluated "
-                "whether the commercial space economy is a legitimate investable theme in the 2020s or a long-duration speculative bet with no near-term cash flows.**\n\n"
-                "Have public space companies delivered shareholder returns backed by real business progress, or is the story still mostly narrative?")
+    st.markdown("""
+                <div class='section-intro'>
+                Launch costs have collapsed, satellite constellations are proliferating, and private capital is flooding into space infrastructure. This thesis evaluates 
+                whether the commercial space economy is a legitimate investable theme in the 2020s or a long-duration speculative bet with no near-term cash flows.<br><br>
+
+                <strong> Have public space companies delivered shareholder returns backed by real business progress, or is the story still mostly narrative?</strong>
+                </div>""", unsafe_allow_html=True)
     
     st.subheader("The Stance")
     st.markdown("**Real, but not yet derisked, and more narrative than earned.**\n"
@@ -131,7 +366,8 @@ with tab_intro:
                 "operating progress, and the sector carries catastrophic drawdowns and heavy cash burn. "
                 "Investable as a high-risk thematic bet for some names, but ont yet a derisked sector")
     
-    st.subheader("How to Read This Dashboard")
+    st.subheader("Dashboard Guide")
+    
     st.markdown("- **Valuation** - are prices justified by the business? P/S and a decomposition of returns into fundamentals vs. multiple re-rating. \n"
                 "- **Profitability** - is the business progressing? Gross-margin trend, cash burn, and runway. \n" \
                 "- **Synthesis** - the headline: per company, *earned* vs *narrative*. \n" \
@@ -149,8 +385,9 @@ with tab_intro:
     
 with tab_syn:
     st.header("Earned or Narrative?")
-    st.caption("The thesis question, per company: did the return come from the business scaling (earned) or from investors paying a higher multiple (narrative)? "
-               "Combines the return decomposition with operating progress (margins, cash).")
+    st.markdown(""" <div class="section-intro">
+    The thesis question, per company: did the return come from the business scaling (earned) or from investors paying a higher multiple (narrative)? 
+    Combines the return decomposition with operating progress (margins, cash).</div>""", unsafe_allow_html = True)
     
     c1, c2, c3, c4 = st.columns(4)
     c1.metric("Earned", syn_sum['earned'])
@@ -174,153 +411,150 @@ with tab_syn:
             xaxis_title = "Fundamental Share of Return (0-1)",
             height = CHART_HEIGHT, xaxis_range = [0, 1.15]
         )
-        st.plotly_chart(fig, use_container_width = True)
+        st.plotly_chart(fig, width='stretch')
 
     st.subheader("Per-Company Read")
-    st.dataframe(stab[['ticker', 'group', 'verdict', 'total_return_%', 'fundamental_%', 'rerating_%', 'margin_improving', 'fcf_positive', 'reason']], use_container_width = True, hide_index = True)
+    st.dataframe(stab[['ticker', 'group', 'verdict', 'total_return_%', 'fundamental_%', 'rerating_%', 'margin_improving', 'fcf_positive', 'reason']], width='stretch', hide_index = True)
 
 
 with tab_verdict:
-    _vcolor = (
-        EARNED_COLOR if "investable" in verdict['verdict'].lower()
-        else NARR_COLOR if "pipe dream" in verdict['verdict'].lower()
-        else MIXED_COLOR
-    )
+    _vtext = verdict["verdict"]
+    if "investable" in _vtext.lower():
+        _vcolor, _vbg = EARNED_COLOR, "#F0FDF4"
+    elif "pipe dream" in _vtext.lower():
+        _vcolor, _vbg = NARR_COLOR, "#FEF2F2"
+    elif "derisked" in _vtext.lower():
+        _vcolor, _vbg = MIXED_COLOR, "#FFFBEB"
+    else:
+        _vcolor, _vbg = NEUTRAL, "#F8FAFC"
 
-    st.markdown(f"<h2 style = 'color:{_vcolor}; margin-bottom: 0;'> {verdict['verdict']}</h2", unsafe_allow_html = True)
-
-
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("Net Weighted Score", f"{verdict['score']:+.0f}")
-    c2.metric("Return Signals", f"{verdict['return_score']:+d}")
-    c3.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
-    c4.metric("Max Possible", f"+/-{verdict['max_possible']:.0f}")
-
-    ssum = syn.synthesis_summary(data, selected_tickers)
-    earned, narrative, mixed = ssum['earned'], ssum['narrative'], ssum['pure_play_total']
-
-    st.subheader('The Thesis')
-
-    st.markdown(f"Across {ssum['pure_play_total']} pure-play space companies, **{ssum['earned']} show returns that were driven by fundamentals while "
-                f"**{ssum['narrative']} were **narrative**, driven mainly by multiple re-reating, and {ssum['mixed']} are mixed. "
-                "On a risk basis, the sect remains punishing: pure-play drawdowns cluster far deeper than the mature aerospace names, and most are still burning cash. \n\n"
-                "**Bottom Line:** the commercial space economy is *real but not yet derisked.* A minority of names have delivered shareholder returns backed "
-                "by genuine business progress; for the majority, the market has paid up on expectation more than execution. It is investable today only as a high-risk, selective thematic bet.")
     
-    st.subheader("Signals")
-    rows = []
+
+    score_pct = abs(verdict["score"]) / verdict["max_possible"] * 100 if verdict["max_possible"] else 0
+ 
+    st.markdown(f"""
+    <div class="verdict-banner" style="background:{_vbg}; border-left-color:{_vcolor};">
+        <h2 style="color:{_vcolor};">{_vtext}</h2>
+        <p>Net score: {verdict['score']:+.0f} out of ±{verdict['max_possible']:.0f}
+        ({score_pct:.0f}% conviction) · {verdict['n_decisive']} of {len(signals)} signals decisive</p>
+    </div>
+    """, unsafe_allow_html=True)
+ 
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Return Signals", f"{verdict['return_score']:+.0f}")
+    c2.metric("Risk Signals", f"{verdict['risk_score']:+.0f}")
+    c3.metric("Net Score", f"{verdict['score']:+.0f}")
+ 
+    # ── Dynamic thesis paragraph ──
+    st.subheader("The Thesis")
+    dynamic_text = build_dynamic_verdict(verdict, signals, syn_sum, prof_sum, risk_df)
+    st.markdown(dynamic_text)
+ 
+    # ── Signal cards ──
+    st.subheader("Scorecard (8 Signals)")
+ 
+    # Build signal cards as HTML grid
+    cards_html = '<div class="signal-grid">'
     for s in signals:
-        mark = {1: "leans investable", 0: "inconclusive", -1: "leans pipe dream"}[s['verdict']]
-        rows.append({"Signal": s['name'], "Read": mark, "Detail": s["detail"], "Weight": s['weight'], "Kind": s["kind"]})
-    st.dataframe(pd.DataFrame(rows), width='stretch', hide_index = True)
-
-    with st.expander("Supporting Context: Regression & Regime Detail"):
-        st.markdown("**Revenue Growth Leads to Stock Return Regression**")
+        icon = {1: "✅", 0: "➖", -1: "❌"}[s["verdict"]]
+        weight_badge = (
+            f'<span class="signal-weight">×{s["weight"]:.0f}</span>'
+            if s["weight"] > 1 else ""
+        )
+        cards_html += f"""
+        <div class="signal-card">
+            <span class="signal-icon">{icon}</span>
+            <div>
+                <div class="signal-name">{s["name"]}{weight_badge}</div>
+                <div class="signal-detail">{s["detail"]}</div>
+            </div>
+        </div>
+        """
+    cards_html += "</div>"
+    st.markdown(cards_html, unsafe_allow_html=True)
+ 
+    # ── Supporting context: regression + regime ──
+    with st.expander("Supporting context: Regression & Regime analysis"):
+        st.markdown("**Revenue growth → stock return regression**")
         rc1, rc2, rc3 = st.columns(3)
-        rc1.metric("R\u00b2", f"{reg.r_squared:.3f}" if reg.r_squared is not None else "N/A")
+        rc1.metric("R²", f"{reg.r_squared:.3f}" if reg.r_squared is not None else "N/A")
         rc2.metric("p-value", f"{reg.p_value:.3f}" if reg.p_value is not None else "N/A")
-        rc3.metric('n', reg.n)
-
+        rc3.metric("n", reg.n)
+ 
         df = reg.df
         if not df.empty:
             fig = go.Figure()
             for grp, color in [("pure_play", PURE_COLOR), ("diversified", DIV_COLOR)]:
                 g = df[df["group"] == grp]
                 fig.add_trace(go.Scatter(
-                    x = g["revenue_growth"], y = g["stock_return"], mode = "markers+text", text = g["ticker"], textposition = "top center", name = grp, marker=dict(size = 14, color = color)))
+                    x=g["revenue_growth"], y=g["stock_return"],
+                    mode="markers+text", text=g["ticker"],
+                    textposition="top center", name=grp.replace("_", " ").title(),
+                    marker=dict(size=14, color=color, line=dict(width=1, color="white")),
+                ))
             if reg.slope is not None:
-                xs = np.linspace(df['revenue_growth'].min() - 20, df['revenue_growth'].max() + 20, 100)
-                fig.add_trace(go.Scatter(x=xs, y= reg.slope*xs + reg.intercept, mode="lines", name=f"Fit (R\u00b2 = {reg.r_squared:.2f})",
-                                            line = dict(color = "black", dash = "dash")))
-            fig.update_layout(**CHART_LAYOUT, xaxis_title = "Revenue Growth (%)", yaxis_title = f"Stock Return (%, {method})", height = CHART_HEIGHT, hovermode = "closest")
-            st.plotly_chart(fig, use_container_width = True)
-
+                xs = np.linspace(
+                    df["revenue_growth"].min() - 20,
+                    df["revenue_growth"].max() + 20, 100,
+                )
+                fig.add_trace(go.Scatter(
+                    x=xs, y=reg.slope * xs + reg.intercept,
+                    mode="lines", name=f"Fit (R²={reg.r_squared:.2f})",
+                    line=dict(color="#0F172A", dash="dash"),
+                ))
+            fig.update_layout(
+                **CHART_LAYOUT,
+                xaxis_title="Revenue Growth (%)",
+                yaxis_title=f"Stock Return (%, {method})",
+                height=480, hovermode="closest",
+            )
+            st.plotly_chart(fig, width='stretch')
             if reg.low_power:
-                st.warning(f"n = {reg.n} is small, treat the p-value as suggestive.")
-
-        st.markdown("**Returns Across Interest-Rate Regimes**")
+                st.warning(f"n={reg.n} is small — treat the p-value as suggestive.")
+ 
+        st.markdown("---")
+        st.markdown("**Returns across interest-rate regimes**")
         rc1, rc2 = st.columns(2)
         rc1.metric("t-statistic", f"{regime.t_stat:.3f}" if regime.t_stat is not None else "N/A")
         rc2.metric("p-value", f"{regime.p_value:.3f}" if regime.p_value is not None else "N/A")
-
+ 
         rdf = regime.regime_df
         if not rdf.empty:
             fig = go.Figure()
             palette = [PURE_COLOR, NARR_COLOR, EARNED_COLOR]
             for col, color in zip(rdf.columns, palette):
-                fig.add_trace(go.Bar(x=rdf.index, y = rdf[col], name = col, marker_color = color))
-            fig.update_layout(**CHART_LAYOUT, barmode = "group", yaxis_title = "Return (%)", height = CHART_HEIGHT)
-            st.plotly_chart(fig, use_container_width = True)
-
+                fig.add_trace(go.Bar(x=rdf.index, y=rdf[col], name=col, marker_color=color))
+            fig.update_layout(
+                **CHART_LAYOUT, barmode="group",
+                yaxis_title="Return (%)", height=460,
+            )
+            st.plotly_chart(fig, width='stretch')
+ 
         if regime.space_index is not None and regime.spy is not None:
-            st.subheader("**Space Sector vs S&P 500**")
+            st.markdown("**Space Sector vs S&P 500**")
             fig2 = go.Figure()
-            fig2.add_trace(go.Scatter(x=regime.space_index.index, y=regime.space_index.values, name = "Space (equal weighted)", line = dict(color = PURE_COLOR)))
-            fig2.add_trace(go.Scatter(x = regime.spy.index, y = regime.spy.values, name = "S&p 500", line = dict(color = "black", dash = "dash")))
-            fig2.update_layout(**CHART_LAYOUT, yaxis_title = "Indexed (100 = Start)", height = CHART_HEIGHT)
-            st.plotly_chart(fig2, use_container_width = True)
-
+            fig2.add_trace(go.Scatter(
+                x=regime.space_index.index, y=regime.space_index.values,
+                name="Space (equal-weighted)",
+                line=dict(color=PURE_COLOR, width=2.5),
+            ))
+            fig2.add_trace(go.Scatter(
+                x=regime.spy.index, y=regime.spy.values,
+                name="S&P 500",
+                line=dict(color="#0F172A", dash="dash", width=2),
+            ))
+            fig2.update_layout(
+                **CHART_LAYOUT, yaxis_title="Indexed (100 = start)", height=440,
+            )
+            st.plotly_chart(fig2, width='stretch')
+ 
         for n in regime.notes:
             st.caption(n)
-            
-
-        
-with tab_risk:
-    st.header("Risk-Adjusted Returns")
-    st.caption("Sharpe = return per unit of total volatility. Sortino penalizes only downside. \nMax drawdown = worst peak-to-trough loss.")
-    d = risk_df.dropna(subset=["sharpe"]).sort_values("sharpe")
-    if not d.empty:
-        color = [PURE_COLOR if g == "pure_play" else DIV_COLOR for g in d["group"]]
-        fig = go.Figure(go.Bar(x=d["sharpe"], y = d["ticker"], orientation = "h", marker_color = color))
-        fig.add_vline(x=1, line_dash = "dash", line_color = EARNED_COLOR, annotation_text="Sharpe = 1")
-        fig.update_layout(**CHART_LAYOUT, xaxis_title = "Sharpe Ratio", height = CHART_HEIGHT)
-        st.plotly_chart(fig, use_container_width = True)
-
-    st.subheader("Full Risk Table")
-    st.dataframe(risk_df, use_container_width = True, hide_index = True)
-
-
-with tab_robust:
-    st.header("How Much Should You Trust This?")
-    st.subheader("Bootstrap (resampling the companies)")
-    boot = robustness.bootstrap_regression(data, selected_tickers, method = method, n_boot = 5000)
-
-    if boot.slope_ci is not None:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Slope 95% CI low", f"{boot.slope_ci[0]:.3f}")
-        c2.metric("Slope 95% CI high", f"{boot.slope_ci[1]:.3f}")
-        c3.metric("Share positive slope", f"{boot.share_positive_slope:.0%}")
-
-        if boot.slope_crosses_zero:
-            st.warning("The 95% CI for slope include 0. The potivie relationship is not robust.")
-        else:
-            st.success("The 95% CI for slope excludes 0, the direction is reasonably stable.")
-    
-    for n in boot.notes:
-        st.caption(n)
-
-    st.subheader("Leave-Out Influence (which names carry the results?)")
-    jk = robustness.jackknife_regression(data, selected_tickers, method = method)
-    if not jk.empty:
-        st.dataframe(jk, width='stretch', hide_index = True)
-
-    top = robustness.drop_top_performers(data, k = 2, selected_tickers=selected_tickers, method=method)
-    if isinstance(top.get("slope_full"), (int, float)):
-        st.write(f"**Drop top 2 ({top.get('dropped')}):** slope "
-                f"{top.get('slope_full'):.3f} \u2192 {top.get('slope_without_top'):.3f}"
-                f"{top.get('note')}")
-    else:
-        st.write(top.get('note', ""))
-    
-    st.subheader("Return-Convention Robustness")
-    st.dataframe(robustness.convention_robustness(data, selected_tickers), width='stretch', hide_index = True)
-    st.subheader("Regime-Data Sensitivity")
-    st.caption("Does the regime story survive moving the cutoff dates?")
-    st.dataframe(robustness.regime_data_sensitivity(data, selected_tickers), width='stretch', hide_index = True)
 
 with tab_val:
-    st.header("Is Tte Price Justified by the bBsiness?")
-    st.caption("Market cap is computed as shares x price so P/S is real and time-varying. The decomposition splits each stock's move into business growth vs. multiple re-reating.")
+    st.header("Is The Price Justified by the Bsiness?")
+    st.caption("""<div class='section-intro'>Market cap is computed as shares x price so P/S is real and time-varying. The decomposition splits each stock's move into business growth vs. multiple re-reating.</div?""",
+               unsafe_allow_html = True)
     
     cset1, cset2 = st.columns(2)
 
@@ -334,7 +568,7 @@ with tab_val:
         colors = [PURE_COLOR if g == 'pure_play' else DIV_COLOR for g in d['group']]
         fig = go.Figure(go.Bar(x=d['ps_ratio'], y = d['ticker'], orientation = 'h', marker_color = colors))
         fig.update_layout(**CHART_LAYOUT, xaxis_title = "P/S (market cap / revenue)", height = CHART_HEIGHT)
-        st.plotly_chart(fig, use_container_width = True)
+        st.plotly_chart(fig, width='stretch')
 
     st.subheader("Priced for Perfection?")    
     st.caption("Top-left = expensive but slow growing (danger). Bottom-right = cheap to relative growth") 
@@ -358,17 +592,18 @@ with tab_val:
         fig3.add_trace(go.Bar(x=dec['ticker'], y = dec['fundamental_%'], name = "Funamental (sales/share)", marker_color = EARNED_COLOR))
         fig3.add_trace(go.Bar(x=dec['ticker'], y=dec['rerating_%'], name = "Multiple Re-Rating", marker_color=NARR_COLOR))
         fig3.update_layout(**CHART_LAYOUT, barmode='relative', yaxis_title='Contribution to Return (%)', height = CHART_HEIGHT)
-        st.plotly_chart(fig3, use_container_width = True)
-        st.dataframe(dec[['ticker', 'group', 'total_return_%', 'fundamental_%', 'rerating_%']], use_container_width = True, hide_index = True)
+        st.plotly_chart(fig3, width='stretch')
+        st.dataframe(dec[['ticker', 'group', 'total_return_%', 'fundamental_%', 'rerating_%']], width='stretch', hide_index = True)
 
     st.subheader('Valuation Table')
-    st.dataframe(vt, use_container_width = True, hide_index = True)
+    st.dataframe(vt, width='stretch', hide_index = True)
     if vt['ev_to_rev'].isna().all():
         st.caption("EV/Revenue is blank")
 
 with tab_prof:
     st.header("Is the Business Actually Progressing?")
-    st.caption("Revenue growth isn't enough for this sector. Rising gross margins show the unit economics work; runway shows who survives long enough to deliver the story")
+    st.caption("""<div class='section-intro'>Revenue growth isn't enough for this sector. Rising gross margins show the unit economics work; runway shows who survives long enough to deliver the story</div>""",
+               unsafe_allow_html = True)
 
     summary = prof.profitability_summary(data, selected_tickers)
     c1, c2, c3, c4 = st.columns(4)
@@ -394,7 +629,7 @@ with tab_prof:
                                textposition="outside"))
         fig.update_layout(**CHART_LAYOUT, xaxis_title="Gross margin (%)  -  green improving / red worsening",
                           height=CHART_HEIGHT)
-        st.plotly_chart(fig, use_container_width = True)
+        st.plotly_chart(fig, width='stretch')
 
     st.subheader("Cash Runway (years until they must raise)")
     st.caption("Cash on hand / annual burn. Blank = cash-generative or no cash data. Short runway and heavy dilution = survival risk")
@@ -405,9 +640,87 @@ with tab_prof:
         fig2 = go.Figure(go.Bar(x = rw["runway_years"], y = rw['ticker'], orientation = 'h', marker_color = colors))
         fig2.add_vline(x = 2, line_dash = "dash", line_color = NARR_COLOR, annotation_text = '2 yrs')
         fig2.update_layout(**CHART_LAYOUT, xaxis_title = "Runway (Years)", height = CHART_HEIGHT)
-        st.plotly_chart(fig2, use_container_width = True)
+        st.plotly_chart(fig2, width='stretch')
     else:
         st.info("No runway data yet")
 
     st.subheader("Profitability Table")
-    st.dataframe(pt, use_container_width = True, hide_index = True)
+    st.dataframe(pt, width='stretch', hide_index = True)
+
+with tab_risk:
+    st.header("Risk-Adjusted Returns")
+    st.markdown("""<div class="section-intro">
+    Sharpe = return per unit of total volatility. Sortino penalizes only downside.
+    Max drawdown = worst peak-to-trough loss.
+    </div>""", unsafe_allow_html=True)
+ 
+    d = risk_df.dropna(subset=["sharpe"]).sort_values("sharpe")
+    if not d.empty:
+        color = [PURE_COLOR if g == "pure_play" else DIV_COLOR for g in d["group"]]
+        fig = go.Figure(go.Bar(
+            x=d["sharpe"], y=d["ticker"], orientation="h", marker_color=color,
+        ))
+        fig.add_vline(x=0, line_dash="solid", line_color="#CBD5E1")
+        fig.add_vline(x=1, line_dash="dash", line_color=EARNED_COLOR,
+                      annotation_text="Sharpe = 1", annotation_position="top")
+        fig.update_layout(**CHART_LAYOUT, xaxis_title="Sharpe Ratio", height=CHART_HEIGHT)
+        st.plotly_chart(fig, width='stretch')
+ 
+    with st.expander("Full risk table"):
+        st.dataframe(risk_df, width='stretch', hide_index=True)
+
+with tab_robust:
+    st.header("How much should you trust this?")
+    st.markdown("""<div class="section-intro">
+    With only ~16 companies, every statistical result comes with wide uncertainty.
+    These checks quantify how fragile or stable the conclusions are.
+    </div>""", unsafe_allow_html=True)
+ 
+    st.subheader("Bootstrap (resampling the companies)")
+    boot = robustness.bootstrap_regression(
+        data, selected_tickers, method=method, n_boot=5000,
+    )
+    if boot.slope_ci is not None:
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Slope 95% CI low", f"{boot.slope_ci[0]:.3f}")
+        c2.metric("Slope 95% CI high", f"{boot.slope_ci[1]:.3f}")
+        c3.metric("Share positive slope", f"{boot.share_positive_slope:.0%}")
+ 
+        if boot.slope_crosses_zero:
+            st.warning("The 95% CI for slope includes 0 — the positive relationship is not robust.")
+        else:
+            st.success("The 95% CI for slope excludes 0 — the direction is reasonably stable.")
+ 
+    for n in boot.notes:
+        st.caption(n)
+ 
+    st.subheader("Leave-out influence")
+    st.caption("Which names carry the result? Dropping each one and re-fitting.")
+    jk = robustness.jackknife_regression(data, selected_tickers, method=method)
+    if not jk.empty:
+        st.dataframe(jk, width='stretch', hide_index=True)
+ 
+    top = robustness.drop_top_performers(
+        data, k=2, selected_tickers=selected_tickers, method=method,
+    )
+    if isinstance(top.get("slope_full"), (int, float)):
+        st.write(
+            f"**Drop top 2 ({top.get('dropped')}):** slope "
+            f"{top['slope_full']:.3f} → {top['slope_without_top']:.3f} — "
+            f"{top['note']}"
+        )
+    else:
+        st.write(top.get("note", ""))
+ 
+    st.subheader("Return-Convention Robustness")
+    st.dataframe(
+        robustness.convention_robustness(data, selected_tickers),
+        width='stretch', hide_index=True,
+    )
+ 
+    st.subheader("Regime-Date Sensitivity")
+    st.caption("Does the regime story survive moving the cutoff dates?")
+    st.dataframe(
+        robustness.regime_data_sensitivity(data, selected_tickers),
+        width='stretch', hide_index=True,
+    )

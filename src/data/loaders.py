@@ -115,6 +115,10 @@ def _load_financials(force: bool = False) -> tuple[dict, list[str], list[str]]:
                     if key in bs.index:
                         entry['cash'] = _clean_series(bs.loc[key])
                         break
+
+                for key in ("Total Debt", "Long Term Debt", "Long Term Debt and Capital Lease Obligation"):
+                    if key in bs.index:
+                        entry['debt'] = _clean_series(bs.loc[key])
             except Exception:
                 pass
 
@@ -124,6 +128,7 @@ def _load_financials(force: bool = False) -> tuple[dict, list[str], list[str]]:
                     entry['shares'] = _clean_series(so)
             except Exception:
                 pass
+
 
             financials[t] = entry if 'revenue' in entry else None
             if financials[t] is None:
