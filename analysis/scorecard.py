@@ -68,7 +68,7 @@ def build_scorecard(reg, regime, risk_df: pd.DataFrame, *, risk_weight: float = 
             add("Earned vs Narrative", 0, "n/a", 2.0, "return")
 
     if prof_summary is not None:
-        up = prof_summary.get("margins_imrpoving", 0)
+        up = prof_summary.get("margins_improving", 0)
         down = prof_summary.get("margins_deteriorating", 0)
         if up+ down > 0:
             v = 1 if up > down else (-1 if down > up else 0)
