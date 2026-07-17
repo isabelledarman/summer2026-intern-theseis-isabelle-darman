@@ -16,23 +16,37 @@ const P = {
 };
 const F = "'Space Grotesk', 'Inter', system-ui, sans-serif";
 const FM = "'Space Mono', 'JetBrains Mono', monospace";
-const ttS = {background:P.panS,border:`1px solid ${P.brd}`, borderRadius: 8, fontSize:12, color: P.txt, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"};
+const ttS = {background:P.panS,border:`1px solid ${P.brd}`, borderRadius: 8, fontSize:12, color: P.txB, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"};
 
 function Starfield(){
 
 }
 
-function GC({title, sub, children, style, glow}){
-    return(
-        <div style={{background:P.pan, backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)",
-            border:`1px solid ${P.brd}`,borderRadius:16,padding:"24px 28px",marginBottom:20,
-            position:"relative",overflow:"hidden",
-            boxShadow:glow?`0 0 40px ${glow}12,inset 0 1px 0 rgba(255,255,255,0.04)`:`inset 0 1px 0 rgba(255,255,255,0.04)`,...style}}>
-            {title && <div style={{fontSize:13,fontWeight:600,color:P.txB,letterSpacing:0.5,fontFamily:F,marginBottom:sub?4:16}}>{title}</div>}
-            {sub && <div style={{fontSize:10,color:P.txD,marginBottom:16,fontFamily:FM}}>{sub}</div>}
-            {children}
+function CustomTooltip({active, payload, label}){
+if (!active || !payload?.length) return null;
+  return (
+    <div style={{background:P.panS, border:`1px solid ${P.brd}`, borderRadius:8, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.5)"}}>
+      <div style={{color:P.txB, fontSize:11, fontFamily:FM, marginBottom:4}}>{label}</div>
+      {payload.map((p,i) => (
+        <div key={i} style={{color: p.payload?._color || p.fill || P.txt, fontSize:12, fontFamily:FM}}>
+          {p.name}: {typeof p.value === 'number' ? p.value.toFixed(1) : p.value}
         </div>
-    )
+      ))}
+    </div>
+  );
+}
+
+function GC({title, sub, children, style, glow}){
+    return (
+    <div style={{background:P.pan,backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",
+      border:`1px solid ${P.brd}`,borderRadius:16,padding:"24px 28px",marginBottom:20,
+      position:"relative",overflow:"hidden",
+      boxShadow:glow?`0 0 40px ${glow}12,inset 0 1px 0 rgba(255,255,255,0.04)`:`inset 0 1px 0 rgba(255,255,255,0.04)`,...style}}>
+      {title && <div style={{fontSize:13,fontWeight:600,color:P.txB,letterSpacing:0.5,fontFamily:F,marginBottom:sub?4:16}}>{title}</div>}
+      {sub && <div style={{fontSize:10,color:P.txD,marginBottom:16,fontFamily:FM}}>{sub}</div>}
+      {children}
+    </div>
+  );
 }
 
 function TB({tabs, active, onChange}){
@@ -62,7 +76,7 @@ function SP({label, value, color}){
 }
 
 function DT({columns,data, compact}){
-    if (!data?.length) return <div style={{color:P.txD,fontSize:11,fontFamily:FM}}>Loading…</div>;
+  if (!data?.length) return <div style={{color:P.txD,fontSize:11,fontFamily:FM}}>Loading…</div>;
   return (
     <div style={{overflowX:"auto"}}>
       <table style={{width:"100%",borderCollapse:"collapse",fontSize:compact?11:12,fontFamily:FM}}>
@@ -90,17 +104,17 @@ function Loading(){
     return <div style={{color:P.txD, fontSize:12, fontFamily:FM, padding:40, textAlign:"center"}}> Loading Data...</div>;
 }
 
-const cDot = (props) => {
-    const {cx, cy, payload} = props;
-    const col = payload.group === "pure_play"?P.cy: P.div;
-    return(
-        <g>
-            <circle cx={cx} cy={cy} r={8} fill={col} opacity={0.12}/>
-            <circle cx={cx} cy={cy} r={8} fill={col} opacity={0.9}/>
-            <text x={cx+10} y = {cy-8} fill={P.star} fontSize={9} fontFamily={FM} opacity={0.8}>{payload.ticker}</text>
-        </g>
-    )
-}
+const CDot = (props) => {
+  const {cx,cy,payload} = props;
+  const col = payload.group==="pure_play"?P.cy:P.div;
+  return (
+    <g>
+      <circle cx={cx} cy={cy} r={8} fill={col} opacity={0.12}/>
+      <circle cx={cx} cy={cy} r={4} fill={col} opacity={0.9}/>
+      <text x={cx+10} y={cy-8} fill={P.star} fontSize={9} fontFamily={FM} opacity={0.8}>{payload.ticker}</text>
+    </g>
+  );
+};
 
 function useApi(path){
     const [data, setData] = useState(null);
@@ -157,7 +171,7 @@ function OverviewTab(){
                                 <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
                                 <XAxis dataKey="month" tick = {{fill:P.txD, fontSize:9, fontFamily:FM}} interval={5}/>
                                 <YAxis tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
-                                <Tooltip contentStyle={ttS}/>
+                                <Tooltip content={<CustomTooltip/>}/>
                                 <Area type="monotone" dataKey="Space" stroke={P.cy} fill="url(#sg)" strokeWidth={2} dot={false}/>
                                 <Area type="monotone" dataKey="SPY" stroke={P.txD} fill="none" strokeWidth={1.5} strokeDasharray= "6 3" dot={false}/>
                             </AreaChart>
@@ -171,15 +185,164 @@ function OverviewTab(){
 }
 
 function FundamentalsTab(){
+    const prof = useApi("profitability");
+    const syn = useApi("synthesis")
 
+    if(!prof || !syn) return <Loading />;
+    const profData = Array.isArray(prof) ? prof : [];
+    const synData = Array.isArray(syn) ? syn : [];
+
+    return(
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
+          <GC title="Gross Margin" sub="Green = improving" glow={P.em}>
+            <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={profData.map(d => ({...d, _color: d.margin_improving ? P.em : P.ro}))} layout='vertical'>
+                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis type="number" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                        <YAxis type='category' dataKey="ticker" tick={{fill:P.star,fontSize:10, fontFamily:FM}} width={48}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <Bar dataKey="gross_margin_%" radius={[0,6,6,0]}>
+                            {profData.map((d, i)=><Cell key={i} fill={d.margin_improving?P.em:P.ro} opacity={0.75}/>)}
+                        </Bar>
+                </BarChart>
+            </ResponsiveContainer>
+          </GC>
+          <GC title="Cash Runway (years)" glow={P.am}>
+            <ResponsiveContainer width = "100%" height={300}>
+                <BarChart data={profData.filter(p=>p.runway_years>0)} layout='vertical'>
+                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis type="number" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                        <YAxis type='category' dataKey="ticker" tick={{fill:P.star,fontSize:10, fontFamily:FM}} width={48}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <ReferenceLine x={2} stroke={P.ro} strokeDasharray="4 3"/>
+                        <Bar dataKey="runway_years" fill = {P.vi} radius={[0,6,6,0]} opacity={0.8}/>
+                </BarChart>
+            </ResponsiveContainer>
+          </GC>
+          <GC title="Return Decomposition" sub = "Fundamental Growth vs. Multiple Re-Rating" style={{gridColumn:"1/-1"}} glow={P.cy}>
+            <ResponsiveContainer width = "100%" height={300}>
+                <BarChart data={synData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis dataKey="ticker" tick={{fill:P.star, fontSize:10, fontFamily:FM}}/>
+                        <YAxis tick={{fill:P.txD,fontSize:9, fontFamily:FM}}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <Legend wrapperStyle={{fontSize: 10, fontFamily:FM}}/>
+                        <Bar dataKey="fundamental_%" name="Fundamental" fill = {P.em} opacity={0.8} stackId="a"/>
+                        <Bar dataKey="rerating_%" name="Re-rating" fill = {P.am} opacity={0.65} stackId="a"/>
+                </BarChart>
+            </ResponsiveContainer>
+          </GC>
+        </div>
+    )
 }
 
 function ValuationTab(){
+    const val = useApi("valuation");
+    if(!val) return <Loading />;
+    const all = val.valuation || []
+    const pv = all.filter(v => v.group === "pure_play")
+    const dv = all.filter(v => v.group === "diversified")
+    const decomp = val.decomposition || []
 
+    const cols = [
+        {key:"ticker", label:"Ticker", align:"left", bold:true, color: r=>r.group==="pure_play"?P.cy:P.div},
+        {key:"pr_ratio", label:"P/S"}, {key:"ev_to_rev", label:"EV/Rev"},
+        {key:"rev_growth_%", label:"Rev%", color: r=>(r['rev_growth_%']??0)>0?P.em:P.ro},
+        {key:"ps_to_growth", label:"PS/G", render:r=>r.ps_to_growth!=null?r.ps_to_growth.toFixed?r.ps_to_growth.toFixed(2):r.ps_to_growth:"—"},
+        {key:"implied_required_cagr_%",label:"Impl CAGR%",color:r=>{const c=r["implied_required_cagr_%"];return c==null?P.txD:c<20?P.em:c>50?P.ro:P.am;}},
+        {key:"market_cap",label:"Mkt Cap",render:r=>{const m=r.market_cap;return m==null?"—":m>=1e9?`$${(m/1e9).toFixed(1)}B`:`$${(m/1e6).toFixed(0)}M`;}},
+
+    ];
+
+    return(
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
+            <GC title="Pure-Play Valuation" sub="P/S  EV/Revenue  implied CAGR" style={{gridColumn:"1/-1"}} glow={P.cy}>
+                <DT columns={cols} data={pv}/>
+            </GC>
+            <GC title="P/S vs Revenue Growth" glow={P.vi}>
+                <ResponsiveContainer width="100%" height={320}>
+                    <ScatterChart>
+                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis type ="number" dataKey="rev_growth_%" tick={{fill:P.txD,fontSize:9, fontFamily: FM}}
+                        label={{value:"Revenue Growth %", position: "insideBottom", offset:-5, fill:P.txD, fontSize:10, fontFamily:FM}}/>
+                        <YAxis type="number" dataKey="pr_ratio" tick={{fill:P.txD,fontSize:9, fontFamily:FM}}
+                        label={{value:"P/R", angle:-90, position:"insideLeft", fill:P.txD,fontSize:10, fontFamily: FM}}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <ReferenceLine y={4} stroke={P.am} strokeDasharray="4 3" label = {{value:"target PS=4", fill:P.am, fontSize:9}}/>
+                        <Scatter data={all} shape={<CDot/>}/>
+                    </ScatterChart>
+                </ResponsiveContainer>
+            </GC>
+            <GC title="Implied CAGR to Justify P/S" sub = "5yr target P/S = 4" glow={P.am}>
+                <ResponsiveContainer width="100%" height={320}>
+                    <BarChart data={[...pv].sort((a,b)=>(b["implied_required_cagr_%"]??0)-(a["implied_required_cagr_%"]??0)).map(d => {
+                        const c = d["implied_required_cagr_%"];
+                        return {...d, _color: c==null ? P.txD : c<20 ? P.em : c>50 ? P.ro : P.am};
+                        })}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis dataKey="ticker" tick={{fill:P.star,fontSize:10, fontFamily: FM}}/>
+                        <YAxis tick={{fill:P.txD,fontSize:9, fontFamily:FM}}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <ReferenceLine y={20} stroke={P.em} strokeDasharray="4 3"/>
+                        <ReferenceLine y={50} stroke={P.ro} strokeDasharray="4 3"/>
+                        <Bar dataKey="implied_required_cagr_%" radius={[6,6,0,0]}>
+                            {[...pv].sort((a,b)=>(b["implied_required_cagr_%"]??0)-(a["implied_required_cagr_%"]??0)).map((d,i)=>{
+                                            const c=d["implied_required_cagr_%"]; return <Cell key={i} fill={c==null?P.txD:c<20?P.em:c>50?P.ro:P.am} opacity={0.8}/>;
+                                          })}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </GC>
+            <GC title="EV/Revenue Comparison" sub = "All Names" style={{gridColumn:"1/-1"}} glow={P.cy}>
+                <ResponsiveContainer width="100%" height={280}>
+                    <BarChart data={[...all].filter(d=>d.ev_to_rev!=null).sort((a,b)=>(b.ev_to_rev??0)-(a.ev_to_rev??0)).map(d => ({...d, _color: d.group==="pure_play"?P.cy:P.div}))}>                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis dataKey="ticker" tick={{fill:P.star,fontSize:10, fontFamily: FM}}/>
+                        <YAxis tick={{fill:P.txD,fontSize:9, fontFamily:FM}}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <ReferenceLine y={20} stroke={P.em} strokeDasharray="4 3"/>
+                        <ReferenceLine y={50} stroke={P.ro} strokeDasharray="4 3"/>
+                        <Bar dataKey="ev_to_rev" radius={[6,6,0,0]}>
+                                      {[...all].filter(d=>d.ev_to_rev!=null).sort((a,b)=>(b.ev_to_rev??0)-(a.ev_to_rev??0)).map((d,i)=>
+                                        <Cell key={i} fill={d.group==="pure_play"?P.cy:P.div} opacity={0.75}/>
+                                      )}
+                                    </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </GC>
+            <GC title="Diversified Comps" glow={P.div}><DT columns={cols} data={dv} compact/></GC>
+            <GC title="Decomposition Detail" sub="Return Sources">
+                <DT compact columns={[
+                    {key:"ticker",label:"Tkr",align:"left",bold:true,color:()=>P.cy},
+                    {key:"total_return_%",label:"Tot%",color:r=>(r["total_return_%"]??0)>0?P.em:P.ro},
+                    {key:"fundamental_%",label:"Fund%"},
+                    {key:"rerating_%",label:"Rerate%"},
+                    {key:"note",label:"Note",align:"left",color:()=>P.txD},
+                ]} data={decomp}/>
+            </GC>
+        </div>
+    )
 }
 
 function RegressionTab(){
-
+    const reg = useApi("regression");
+    if(!reg) return <Loading />;
+    return(
+        <GC title="Revenue Growth -> Stock Return" sub={`OLS - Slope = ${reg.slope?.toFixed(3)}, R-Squared=${reg.r_squared?.toFixed(2)}, p=${reg.p_value.toFixed(3)}, n=${reg.n}${reg.low_power?" (low power)": ""}`} glow={P.cy} style={{maxWdith:900}}>
+            <ResponsiveContainer width="100%" height={420}>
+                <ComposedChart data={reg.points}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                    <XAxis type="number" dataKey="revenue_growth" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}
+                    label={{value:"Revenue Growth %", position:"insideBottom", offset:-5, fill: P.txD, fontSize: 10, fontFamily:FM}}/>
+                    <YAxis type = "number" dataKey="stock_return" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}
+                    label={{value:"Stock Return %", angle:-90, position:"insideLeft", fill:P.txD, fontSize:10, fontFamily:FM}}/>
+                    <Tooltip content={<CustomTooltip/>}/>
+                    <ReferenceLine y={0} stroke={P.txD} strokeDasharray="3 3"/>
+                    <ReferenceLine x={0} stroke={P.txD} strokeDasharray="3 3"/>
+                    <Scatter dataKey="stock_return" shape={<CDot/>}/>
+                </ComposedChart>
+            </ResponsiveContainer>
+        </GC>
+    )
 }
 
 function RiskTab(){
@@ -203,16 +366,17 @@ export default function App(){
         <div style = {{fontFamily:F, background:P.void, color: P.txt, minHeight:"100vh", position:"relative"}}>
             <Starfield />
             <div style={{position:"relative", zIndex:1, padding:"28px 36px", maxWidth:1260, margin:"0 auto"}}>
-                <div style={{width: 36, height: 36, borderRadius:"50%", background: `radial-gradient(circle at 30% 30%, ${P.cy},${P.vi})`, boxShadow: `0 0 20px ${P.cyG}`, flexShrink:0}}/>
+            <div style={{marginBottom:6, display:"flex", alignItems:"center", gap:14}}>
+                <div style={{width:36, height:36, borderRadius:"50%", background:`radial-gradient(circle at 30% 30%, ${P.cy},${P.vi})`, boxShadow:`0 0 20px ${P.cyG}`, flexShrink:0}}/>
                 <div>
-                    <h1 style={{fontSize:22, fontWeight: 700, margin:0, letterSpacing:-0.5, color:P.txB}}>Space Economy</h1>
+                    <h1 style={{fontSize:22, fontWeight:700, margin:0, letterSpacing:-0.5, color:P.txB}}>Space Economy</h1>
                     <div style={{fontSize:13, color:P.txD, fontFamily:FM, marginTop:2}}>Early Stage or Pipe Dream?</div>
                 </div>
             </div>
             <div style={{fontSize:10, color:P.txD, fontFamily:FM, marginBottom:20, marginLeft:50}}>
-                11 pure-play  5 diversified   SPY/ARKX?ROKT benchmarks
+                11 pure-play · 5 diversified · SPY/ARKX/ROKT benchmarks
             </div>
-            <TB tabs={TABS} active = {tab} onChange={setTab}/>
+            <TB tabs={TABS} active={tab} onChange={setTab}/>
             {tab==="Overview" && <OverviewTab />}
             {tab==="Fundamentals" && <FundamentalsTab />}
             {tab==="Valuation" && <ValuationTab />}
@@ -220,6 +384,7 @@ export default function App(){
             {tab==="Risk & Regimes" && <RiskTab />}
             {tab==="Robustness" && <RobustnessTab />}
             {tab==="AI Analysis" && <AITab />}
+        </div>
         </div>
     )
 }

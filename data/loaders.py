@@ -111,7 +111,7 @@ def _load_financials(force: bool = False) -> tuple[dict, list[str], list[str]]:
             try:
                 bs = stock.balance_sheet
 
-                for key in ("Cash and Cash Equivalents", "Cash Cash Equivalents and Short Term Investments"):
+                for key in ("Cash And Cash Equivalents", "Cash Cash Equivalents And Short Term Investments"):
                     if key in bs.index:
                         entry['cash'] = _clean_series(bs.loc[key])
                         break

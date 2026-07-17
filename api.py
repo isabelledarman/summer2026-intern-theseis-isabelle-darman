@@ -61,7 +61,7 @@ def get_returns():
 def get_prices():
     data = get_data()
     cols = [t for t in config.ALL_TICKERS + config.BENCHMARKS if t in data.prices.columns]
-    df = data.prices[cols].dropna(how='all').resample('ME').last()
+    df = data.prices[cols].dropna(how='all').resample('M').last()
     first = df.iloc[0]
     rebased = (df/first * 100).round(2)
     records = []
@@ -77,13 +77,14 @@ def get_regression():
     data = get_data()
     reg = regression.run_regression(data)
     result = {
+
         "slope": reg.slope,
         "intercept": reg.intercept,
         "r_squared": reg.r_squared,
         "p_value": reg.p_value,
         "n": reg.n,
         "low_power": reg.low_power,
-        "point": [{"ticker": p["ticker"], "revenue_growth": p["x"], "stock_return": p["y"], "group": config.classify(p["ticker"])} for p in reg.df.iterrows()]
+        "points": [{"ticker": row["ticker"], "revenue_growth": row["revenue_growth"], "stock_return": row["stock_return"], "group":row['group']} for _, row in reg.df.iterrows()]
     }
     return safe_json(result)
 
