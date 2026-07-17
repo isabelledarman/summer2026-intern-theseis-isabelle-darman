@@ -18,8 +18,43 @@ const F = "'Space Grotesk', 'Inter', system-ui, sans-serif";
 const FM = "'Space Mono', 'JetBrains Mono', monospace";
 const ttS = {background:P.panS,border:`1px solid ${P.brd}`, borderRadius: 8, fontSize:12, color: P.txB, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"};
 
-function Starfield(){
-
+function Starfield() {
+  const ref = useRef(null);
+  useEffect(() => {
+    const c = ref.current; if (!c) return;
+    const ctx = c.getContext("2d"); let id;
+    const stars = Array.from({length:200}, () => ({
+      x:Math.random()*2e3, y:Math.random()*6e3, r:Math.random()*1.6+0.3,
+      sp:Math.random()*0.12+0.02, op:Math.random()*0.5+0.2,
+      tw:Math.random()*0.02+0.005, ph:Math.random()*6.28
+    }));
+    const nebulae = [
+      {x:0.2,y:0.3,r:0.3,c:"rgba(100,60,180,0.03)"},
+      {x:0.7,y:0.6,r:0.25,c:"rgba(30,100,180,0.025)"},
+      {x:0.5,y:0.8,r:0.35,c:"rgba(60,140,160,0.02)"}
+    ];
+    const resize = () => { c.width=c.offsetWidth; c.height=c.offsetHeight; };
+    resize(); window.addEventListener("resize", resize);
+    let t = 0;
+    const draw = () => {
+      ctx.clearRect(0,0,c.width,c.height);
+      for (const n of nebulae) {
+        const g=ctx.createRadialGradient(n.x*c.width,n.y*c.height,0,n.x*c.width,n.y*c.height,n.r*c.width);
+        g.addColorStop(0,n.c); g.addColorStop(1,"transparent");
+        ctx.fillStyle=g; ctx.fillRect(0,0,c.width,c.height);
+      }
+      for (const s of stars) {
+        const f=Math.sin(t*s.tw+s.ph)*0.3+0.7;
+        ctx.beginPath(); ctx.arc(s.x%c.width,s.y%c.height,s.r,0,6.28);
+        ctx.fillStyle=`rgba(190,210,255,${s.op*f})`; ctx.fill();
+        s.y+=s.sp; if(s.y>c.height+10){s.y=-10;s.x=Math.random()*c.width;}
+      }
+      t++; id=requestAnimationFrame(draw);
+    };
+    draw();
+    return () => { cancelAnimationFrame(id); window.removeEventListener("resize", resize); };
+  }, []);
+  return <canvas ref={ref} style={{position:"fixed",top:0,left:0,width:"100%",height:"100%",pointerEvents:"none",zIndex:0}} />;
 }
 
 function CustomTooltip({active, payload, label}){
@@ -346,11 +381,115 @@ function RegressionTab(){
 }
 
 function RiskTab(){
-
+    const riskData = useApi("risk");
+    const regimeData = useApi("regimes");
+    if(!riskData) return <Loading />;
+    
+    const sorted = [...riskData].sort((a,b) => (a.sharpe??0) - (b.sharpe??0));
+    return(
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
+            <GC title="Sharpe Ratio" glow ={P.cy}>
+                <ResponsiveContainer width="100%" height={420}>
+                    <BarChart data={sorted.map(d => ({...d, _color: d.group==="pure_play"?P.cy:P.div}))} layout='vertical'>                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis type='number' tick={{fill:P.star, fontSize:10, fontFamily:FM}} width={48}/>
+                        <YAxis type="category" dataKey="ticker" tick ={{fill:P.star, fontSize:10, fontFamily:FM}} width={48}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <ReferenceLine x={0} stroke={P.txB} strokeWidth={0.5}/>
+                        <Bar dataKey="sharpe" radius={[0,6,6,0]}>
+                            {sorted.map((d,i)=><Cell key={i} fill={d.group === "pure_play"?P.cy:P.div} opacity={0.75}/>)}
+                        </Bar>
+                    </BarChart>
+                </ResponsiveContainer>
+            </GC>
+            <GC title="Risk Metrics" glow={P.vi}>
+                <DT compact columns={[
+                    {key:"ticker", label:"Tkr", align:"left", bold:true, color:r=>r.group==="pure_play"?P.cy:P.div},
+                    {key:"annual_return_%", label:"Ret%", color:r=>(r["annual_return_%"]??0)>0?P.em:P.ro},
+                    {key:"annual_vol_%", label:"Vol%"},
+                    {key:"sharpe", label:"Shrp", color:r=>(r.sharpe??0)>0?P.em:P.ro},
+                    {key:"sortino", label:"Sort", color:r=>(r.sortino??0)>0?P.em:P.ro},
+                    {key:"max_drawdown_%", label:"MDD%", color:()=>P.ro},
+                    {key:"beta", label:"β"}
+                ]} data = {riskData} />
+            </GC>
+            {regimeData &&(
+                <GC title="Rate Regime Returns" style={{gridColumn:"1/-1"}} glow={P.am}>
+                    <ResponsiveContainer width="100%" height={340}>
+                        <BarChart data={regimeData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                            <XAxis dataKey="ticker" tick={{fill:P.star, fontSize:9, fontFamily:FM}}/>
+                            <YAxis tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                            <Tooltip contentStyle={ttS}/>
+                            <Legend wrapperStyle={{fontSize:10, fontFamily:FM}}/>
+                            <ReferenceLine y={0} stroke={P.txB} strokeWidth={0.5}/>
+                            <Bar dataKey="Low Rate Era" fill={P.cy} opacity={0.7}/>
+                            <Bar dataKey="High Rate Era" fill={P.ro} opacity={0.7}/>
+                            <Bar dataKey="Rate Cutting Era" fill={P.em} opacity={0.7}/>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </GC>
+            )}
+        </div>
+    );
 }
 
 function RobustnessTab(){
+    const rob = useApi("robustness");
+    if(!rob) return <Loading />;
+    const boot = rob.bootstrap || {};
+    const jack = rob.jackknife || [];
+    const conv = rob.convention || [];
 
+    return(
+        <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
+            <GC title="Bootstrap Slope Distribution" sub={`${boot.n_boot} resamples`} glow={P.vi}>
+                {boot.distribution?.length > 0 && (
+                    <ResponsiveContainer width="100%" height={280}>
+                        <AreaChart data={boot.distribution}>
+                            <defs><linearGradient id="bg2" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={P.vi} stopOpacity={0.3}/><stop offset="100%" stopColor={P.vi} stopOpacity={0}/></linearGradient></defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                            <XAxis dataKey="slope" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                            <YAxis tick={{fill:P.txD, fontSize:9, fontFamily: FM}}/>
+                            <Tooltip contentStyle={ttS}/>
+                            <ReferenceLine x={0} stroke={P.ro} strokeDasharray="4 3"/>
+                            {boot.slope_ci && <><ReferenceLine x={boot.slope_ci[0]} stroke={P.am} strokeDasharray="4 3"/><ReferenceLine x={boot.slope_ci[1]} stroke={P.am} strokeDasharray="4 3"/></>}
+                            <ReferenceLine x={boot.slope_point} stroke={P.cy} strokeWidth={2}/>
+                            <Area type="monotone" dataKey="density" fill="url(#bg2)" stroke={P.vi} strokeWidth={1.5}/>
+                        </AreaChart>
+                    </ResponsiveContainer>
+                )}
+                <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginTop:8}}>
+                    CI: [{boot.slope_ci?.[0]}], {boot.slope_ci?.[1]} - {" "}
+                    {boot.crosses_zero ? <span style={{color:P.ro, fontWeight:600}}>crosses zero</span>: <span style={{color:P.em, fontWeight:600}}>excludes zero</span>}
+                    {" | "}{boot.share_positive != null ? `${(boot.share_positive*100).toFixed(0)}% positive`: ""}
+                </div>
+            </GC>
+            <GC title="Jackknife Influence" sub="Slope change when each name is dropped" glow={P.cy}>
+                {jack.length > 0 && (
+                    <ResponsiveContainer width="100%" height={280}>
+                        <BarChart data={jack.slice(0,10)} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                            <XAxis type="number" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                            <YAxis type="category" dataKey="dropped" tick={{fill:P.star, fontFamily:FM, fontSize:10}} width={48}/>
+                            <Tooltip content={ttS}/>
+                            <ReferenceLine x={0} stroke={P.txB} strokeWidth={0.5}/>
+                            <Bar dataKey="slope_change" radius={[0,6,6,0]}>
+                                {jack.slice(0,10).map((d,i)=><Cell key={i} fill={(d.slope_change??0)>0?P.em:P.ro} opacity={0.75}/>)}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                )}
+            </GC>
+            {conv.length > 0 &&(
+                <GC title="Convention Robustness" style={{gridColumn:"1/-1"}}>
+                    <DT columns={[
+                        {key:"convention", label:"Convention", align:"left", bold:true, color:()=>P.txB},
+                        {key:"n", label:"n"}, {key:"slope", label:"Slope"}, {key:"r2", label:"R Squared"}, {key:"p", label:"p-value"}
+                    ]} data={conv}/>
+                </GC>
+            )}
+        </div>
+    )
 }
 
 function AITab(){
@@ -381,7 +520,7 @@ export default function App(){
             {tab==="Fundamentals" && <FundamentalsTab />}
             {tab==="Valuation" && <ValuationTab />}
             {tab==="Regression" && <RegressionTab />}
-            {tab==="Risk & Regimes" && <RiskTab />}
+            {tab==="Risk and Regimes" && <RiskTab />}
             {tab==="Robustness" && <RobustnessTab />}
             {tab==="AI Analysis" && <AITab />}
         </div>

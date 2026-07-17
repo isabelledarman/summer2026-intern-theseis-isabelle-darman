@@ -91,7 +91,7 @@ def get_regression():
 @app.get("/api/risk")
 def get_risk():
     data = get_data()
-    df = risk.risk_table(data, config.ALL_TICKERS)
+    df = risk.risk_table(data.prices, config.ALL_TICKERS)
     return df_to_records(df)
 
 @app.get("/api/regimes")
@@ -103,21 +103,20 @@ def get_regimes():
 @app.get("/api/robustness")
 def get_robustness():
     data = get_data()
-    reg = regression.run_regression(data)
-    boot = robustness.bootstrap_regression(data, reg, n_boot = 5000)
-    jack = robustness.jackknife_regression(data, reg)
+    reg = robustness.bootstrap_regression(data)
+    boot = robustness.bootstrap_regression(data)
+    jack = robustness.jackknife_regression(data)
     conv = robustness.convention_robustness(data)
     return safe_json({
         "bootstrap":{
             "slope_point": boot.slope_point,
-            "slope_ci": boot.get("slope_ci"),
-            "crosses_zero": boot.get("crosses_zero"),
-            "share_positive": boot.get("share_positive"),
-            "n_boot": boot.get("n_boot"),
-            "distribution": boot.get("distribution", [])
+            "slope_ci": list(boot.slope_ci) if boot.slope_ci else None,
+            "crosses_zero": boot.slope_crosses_zero,
+            "share_positive": boot.share_positive_slope,
+            "n_boot": boot.n_boot,
         },
-        "jackknife": jack,
-        "convention": conv
+        "jackknife": df_to_records(jack) if isinstance(jack, pd.DataFrame) and not jack.empty else [],
+        "convention": df_to_records(conv) if isinstance(conv, pd.DataFrame) else []
     })
 
 @app.get("/api/valuation")
