@@ -2,8 +2,9 @@ import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".." ))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+import httpx
 import pandas as pd
 import numpy as np
 import config
@@ -103,20 +104,30 @@ def get_regimes():
 @app.get("/api/robustness")
 def get_robustness():
     data = get_data()
-    reg = robustness.bootstrap_regression(data)
     boot = robustness.bootstrap_regression(data)
     jack = robustness.jackknife_regression(data)
     conv = robustness.convention_robustness(data)
+    drop_top = robustness.drop_top_performers(data, k=2)
+    syn_stress = robustness.synthesis_stress_test(data)
+    val_sens = robustness.valuation_sensitivity(data)
+
     return safe_json({
         "bootstrap":{
             "slope_point": boot.slope_point,
             "slope_ci": list(boot.slope_ci) if boot.slope_ci else None,
-            "crosses_zero": boot.slope_crosses_zero,
+            "crosses_zero": boot.share_positive_slope,
             "share_positive": boot.share_positive_slope,
             "n_boot": boot.n_boot,
+            "slope_mean": boot.slope_mean,
+            "r2_point": boot.r2_point,
+            "r2_mean": boot.r2_mean,
+            "notes": boot.notes
         },
         "jackknife": df_to_records(jack) if isinstance(jack, pd.DataFrame) and not jack.empty else [],
-        "convention": df_to_records(conv) if isinstance(conv, pd.DataFrame) else []
+        "convention": df_to_records(conv) if isinstance(conv, pd.DataFrame) else [],
+        "drop_top": drop_top,
+        "synthesis_stress": syn_stress,
+        "valuation_sensitivity": val_sens
     })
 
 @app.get("/api/valuation")
@@ -155,6 +166,76 @@ def get_scorecard():
                                          val_table=vt, prof_summary=prof_sum, syn_summary=syn_sum)
     verdict = scorecard.compute_verdict(signals)
     return safe_json({"signals": signals, "verdict": verdict})
+
+@app.get("/api/dilution")
+def get_dilution():
+    data = get_data()
+    
+@app.get("/api/tam")
+def get_tam():
+    data= get_data()
+
+@app.get("/api/ai-context")
+def get_ai_context():
+    data = get_data()
+    reg = regression.run_regression(data)
+    risk_df = risk.risk_table(data.prices, config.ALL_TICKERS)
+    vt = valuation.valuation_table(data)
+    syn = synthesis.synthesis_table(data)
+    prof = profitability.profitability_table(data)
+    
+    lines = ["Space Economy Thesis Data Snapshot", ""]
+
+    lines.append(f"REGRESSION: slope={reg.slope}, R²={reg.r_squared}, p={reg.p_value}, n={reg.n}")
+    lines.append("")
+ 
+    pure_val = vt[vt["group"] == "pure_play"]
+    lines.append("VALUATION (pure-play):")
+    for _, row in pure_val.iterrows():
+        lines.append(f"  {row['ticker']}: P/S={row.get('ps_ratio')}, EV/Rev={row.get('ev_to_rev')}, "
+                     f"impliedCAGR={row.get('implied_required_cagr_%')}%")
+    lines.append("")
+ 
+    lines.append("SYNTHESIS (verdict per company):")
+    for _, row in syn.iterrows():
+        if row["group"] == "pure_play":
+            lines.append(f"  {row['ticker']}: {row['verdict']} — {row.get('reason', '')}")
+    lines.append("")
+
+    lines.append("PROFITABILITY:")
+    for _, row in prof.iterrows():
+        if row["group"] == "pure_play":
+            lines.append(f"  {row['ticker']}: GM={row.get('gross_margin_%')}%, "
+                         f"improving={row.get('margin_improving')}, "
+                         f"FCF+={row.get('fcf_positive')}, "
+                         f"runway={row.get('runway_years')}yr")
+ 
+    return {"context": "\n".join(lines)}
+
+@app.post("/api/ai-analyze")
+async def ai_analyze(request: Request):
+    """Proxy AI requests to Anthropic API to avoid browser CORS issues."""
+    body = await request.json()
+    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return {"error": "ANTHROPIC_API_KEY not set in environment"}
+ 
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            "https://api.anthropic.com/v1/messages",
+            headers={
+                "Content-Type": "application/json",
+                "x-api-key": api_key,
+                "anthropic-version": "2023-06-01",
+            },
+            json={
+                "model": body.get("model", "claude-sonnet-4-6"),
+                "max_tokens": body.get("max_tokens", 1000),
+                "messages": body.get("messages", []),
+            },
+        )
+        return resp.json()
+ 
 
 if __name__ == "__main__":
     import uvicorn

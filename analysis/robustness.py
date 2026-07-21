@@ -5,6 +5,8 @@ from scipy import stats
 import config
 from analysis import regression as Reg
 from analysis import regimes as Regm
+from analysis import synthesis as Syn
+from analysis import valuation as Val
 
 @dataclass
 class BootstrapResult:
@@ -177,3 +179,44 @@ def convention_robustness(data, selected_tickers: list[str] | None = None)-> pd.
         })
 
     return pd.DataFrame(rows).round(4)
+
+def synthesis_stress_test(data, base_threshold: float=0.5, strick_threshold: float = 0.6) -> dict:
+    syn_df = Syn.synthesis_table(data, config.PURE_PLAY)
+    base_counts = syn_df["verdict"].value_counts().to_dict()
+
+    details = []
+    for _, row in syn_df.itterrows():
+        fs = row.get("fundamental_share")
+        base_v = row["verdict"]
+        strict_v = base_v
+        if fs is not None and base_threshold <= fs < strick_threshold and base_v == "Earned":
+            strict_v = "Mixed"
+            details.append({
+                "ticker": row["ticker"],
+                "base_verdict": base_v,
+                "strict_verdict": strict_v,
+                "flipped": strict_v != base_v
+            })
+
+    return{
+        "base_counts": base_counts,
+        "strict_threshold": strick_threshold,
+        "n_flipped": sum(1 for d in details if d["flipped"]),
+        "details": details
+    }
+
+def valuation_sensitivity(data, target_base: float=4.0, target_strict: float=3.0, years: int=5) ->list[dict]:
+    vt_base = Val.valuation_table(data, config.PURE_PLAY, target_ps=target_base, years=years)
+    vt_strict = Val.valuation_table(data, config.PURE_PLAY, target_ps = target_strict, years = years)
+
+    rows = []
+    for _, row in vt_base.iterrows():
+        strict_row = vt_strict[vt_strict['ticker'] == row['ticker']]
+        strict_cagr = float(strict_row['implied_required_cagr_%'].iloc[0]) if len(strict_row) else None
+        rows.append({
+            "ticker": row["ticker"],
+            "cagr_ps4": row.get("implied_required_cagr_%"),
+            "cagr_ps3": strict_cagr
+        })
+
+    return rows

@@ -18,6 +18,55 @@ const F = "'Space Grotesk', 'Inter', system-ui, sans-serif";
 const FM = "'Space Mono', 'JetBrains Mono', monospace";
 const ttS = {background:P.panS,border:`1px solid ${P.brd}`, borderRadius: 8, fontSize:12, color: P.txB, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"};
 
+const AI_PROMPTS = {
+    sentiment: {
+        label: "Earnings Call Sentiment",
+        description: "Score each company's management language: are they talking revenue milestones or still pitching TAM & vision?",
+        buildPrompt: (ctx) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, score each company's likely management communication style on a scale from 1 (pure narrative/vision/TAM talk) to 5 (operational metrics, revenue milestones, margin targets).
+
+Base your assessment on the financial data provided — companies with strong fundamental returns, improving margins, and FCF positivity are more likely to have shifted to operational language. Companies with narrative verdicts, high dilution, and negative FCF are likely still in pitch mode.
+
+Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, score (1-5), style ("Narrative" | "Transitioning" | "Operational"), reasoning (one sentence).
+
+DATA:
+${ctx}`,
+    },
+    riskFactors: {
+        label: "Risk Profile Classification",
+        description: "Classify each company's dominant risk type: execution, market, or financial.",
+        buildPrompt: (ctx) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, classify each company's dominant risk type based on the financial evidence.
+
+Risk types:
+- "Financial" = might run out of money (negative FCF, low runway, high dilution)
+- "Market" = demand might not exist (requires huge TAM share, unproven segment)
+- "Execution" = demand exists but company might not deliver (has revenue but margins weak)
+
+Companies further along their maturity journey shift from Financial→Market→Execution risk.
+
+Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, primary_risk ("Financial" | "Market" | "Execution"), secondary_risk, maturity (1-5 where 5=most mature), reasoning (one sentence).
+
+DATA:
+${ctx}`,
+    },
+    investmentMemo: {
+        label: "Investment Memo",
+        description: "Generate a structured investment thesis with a clear BUY / AVOID verdict for the sector.",
+        buildPrompt: (ctx) => `You are a senior portfolio strategist writing a decisive investment memo. Based on the data below, write a 400-word investment memo on the commercial space sector.
+
+Structure:
+1. VERDICT (one sentence: "The commercial space sector IS / IS NOT investable for a growth-oriented portfolio because...")
+2. THE BULL CASE (2-3 strongest evidence points from the data)
+3. THE BEAR CASE (2-3 strongest counter-evidence)
+4. NAME-LEVEL PICKS (which 2-3 names have the best risk/reward based on the data, and which 2-3 should be avoided)
+5. POSITION SIZING (given the risk profile, what allocation % would be appropriate)
+
+Be decisive. Do not hedge. The data should drive a clear answer.
+
+DATA:
+${ctx}`,
+    },
+};
+
 function Starfield() {
   const ref = useRef(null);
   useEffect(() => {
@@ -439,9 +488,39 @@ function RobustnessTab(){
     const boot = rob.bootstrap || {};
     const jack = rob.jackknife || [];
     const conv = rob.convention || [];
+    const drop = rob.drop_top || {};
+    const synStress = rob.synthesis_stress || {};
+    const valSens = (rob.valuation_sensitivity || []).filter(v => v.cagr_ps4 != null);
 
     return(
         <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
+            <GC title="Winner Dependence Test" sub= "Does the revenue to retunr link survive without the top 2 stocks?" glow={P.am} style = {{gridColumn:"1/-1"}}>
+                <div style={{display:"flex", gap:40, flexWrap:"wrap", alignItems:"center"}}>
+                    <div>
+                        <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginBottom:6}}>Full Sample</div>
+                        <div style={{display:"flex", gap:20}}>
+                            <SP label="Slope" value={drop.slope_full?.toFixed(4) ?? "-"} color={P.cy}/>
+                            <SP label="R-Squared" value={drop.r2_full?.toFixed(3) ?? "-"} color={P.cy}/>
+                        </div>
+                    </div>
+                    <div style={{fontSize:24, color:P.txD}}>arrow</div>
+                    <div>
+                        <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginBottom:6}}>Without {(drop.dropped || []).join(", ")}</div>
+                        <div style={{display:"flex", gap:20}}>
+                            <SP label="Slope" value={drop.slope_without_top?.toFixed(4) ?? "-"} color={drop.sign_flipped ? P.ro : P.em}/>
+                            <SP label="R-Squared" value={drop.r2_without_top?.toFixed(3) ?? "-"} color={drop.sign_flipped ? P.ro : P.em}/>
+                            <SP label = "p-value" value = {drop.p_without_top?.toFixed(3) ?? "-"}/>
+                        </div>
+                    </div>
+                    <div style = {{padding:"8px 16px", borderRadius:8, fontSize:12, fontFamily:FM, fontWeight:600,
+                        background: drop.sign_flipped ? P.ro + "20" : P.em+"20",
+                        color: drop.sign_flipped ? P.ro : P.em,
+                        border: `1px solid ${drop.sign_flipped ? P.ro : P.em}30`}}>
+                        {drop.sign_flipped ? "Sign Flipped -- Result is Fragile": "Sign Holds -- Result is Robust"}
+                    </div>                
+                </div>
+                {drop.note && <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginTop:12}}>{drop.note}</div>}
+            </GC>
             <GC title="Bootstrap Slope Distribution" sub={`${boot.n_boot} resamples`} glow={P.vi}>
                 {boot.distribution?.length > 0 && (
                     <ResponsiveContainer width="100%" height={280}>
@@ -480,6 +559,43 @@ function RobustnessTab(){
                     </ResponsiveContainer>
                 )}
             </GC>
+            <GC title="Verdict Sensitivity" sub = "How many names flope from Earned to Mixed if we raise the fundamental share threshold from 50% to 60%?" glow={P.am} style={{gridColumn:"1/-1"}}>
+                <div style={{display:"flex", gap:40, flexWrap:"wrap", alignItems:"center", marginBottom: 16}}>
+                    <div>
+                        <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginBottom:6}}>Base (greather than 50% fundamental share = Earned)</div>
+                        <div style={{display:"flex", gap:20}}>
+                            <SP label="Earned" value={synStress.base_counts?.Earned ?? 0} color={P.em}/>
+                            <SP label="Mixed" value={synStress.base_counts?.Mixed ?? 0} color={P.am}/>
+                            <SP label="Narrative" value={synStress.base_counts?.Narrative ?? 0} color={P.ro}/>
+                        </div>
+                    </div>
+                    <div style={{fontSize:24, color:P.txD}}>arrow</div>
+                    <div>
+                        <div style={{fontSize:11, fontFamily:FM, color:P.txD, marginBottom:6}}>String (greater than 60%)</div>
+                        <SP label="Flipped" value={`${synStress.n_flipped ?? 0} names`} color={synStress.n_flipped > 2 ? P.ro : P.em}/>
+                    </div>
+                </div>
+                {(synStress.details || []).filter(d => d.flipped).length > 0 && (
+                    <DT compact columns={[
+                        {key:"ticker", label:"Ticker", align:"left", bold:true, color:()=>P.cy},
+                        {key:"base_verdict", label:"Base", color:r=>r.base_verdict==="Earned"?P.em:r.base_verdict==="Narrative"?P.ro:P.am},
+                        {key:"strict_verdict", label:"Strict", color:r=>r.strict_verdict==="Earned"?P.em:r.strict_verdict==="Narrative"?P.ro:P.am},
+                    ]} data={(synStress.details || []).filter(d => d.flipped)}/>
+                )}
+            </GC>
+            <GC title="Valuation Target Sensitivity" sub="Implied CAGR if target P/S  = 4 vs P/S = 3" glow={P.cy}>
+                {valSens.length > 0 &&(
+                    <ResponsiveContainer width="100%" height={300}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
+                        <XAxis dataKey="ticker" tick = {{fill:P.star, fontSize:10, fontFamily:FM}}/>
+                        <YAxis tick={{fill:P.txD, fontSize:9, fontFamily:FM}}/>
+                        <Tooltip content={<CustomTooltip/>}/>
+                        <Legend wrapperStyle={{fontSize: 10, fontFamily:FM}}/>
+                        <Bar dataKey="cagr_ps4" name="Target P/S = 4" fill = {P.cy} opacity={0.7}/>
+                        <Bar dataKey="cagr_ps3" name="Target P/S = 3" fill = {P.am} opacity={0.7}/>
+                    </ResponsiveContainer>
+                )}
+            </GC>
             {conv.length > 0 &&(
                 <GC title="Convention Robustness" style={{gridColumn:"1/-1"}}>
                     <DT columns={[
@@ -493,7 +609,159 @@ function RobustnessTab(){
 }
 
 function AITab(){
+    const [context, setContext] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [results, setResults] = useState({});
+    const [activePrompt, setActivePrompt] = useState(null);
 
+    useEffect(() => {
+        api("ai-context").then(d => setContext(d.context)).catch(console.error);
+    }, []);
+
+    const runAnalysis = async (key) => {
+        if (!context) return;
+        setActivePrompt(key)
+        setLoading(true);
+        try{
+            const prompt = AI_PROMPTS[key];
+            const response = await fetch("https://api.anthropic.com/v1/messages", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    model: "claude-sonnet-4-6",
+                    max_tokens: 1000,
+                    messages: [{ role: "user", content: prompt.buildPrompt(context) }],
+                }),
+            });
+            const data = await response.json();
+            const text = data.content?.map(i => i.text || "").join("\n") || "";
+
+            let parsed;
+            try{
+                const clean = text.replace(/```json|```/g, "").trim();
+                parsed = { type: "json", data: JSON.parse(clean)};
+            } catch{
+                parsed = {type: "text", data: text};
+            }
+            setResults(prev => ({...prev, [key]: parsed}));
+        } catch (err){
+            setResults(prev => ({...prev, [key]: {type:"error", data: err.message }}));
+        } finally{
+            setLoading(false);
+            setActivePrompt(null);
+        }
+    };
+
+    const styleColor = (style) =>
+        style === "Operational" ? P.em : style === "Transitioning" ? P.am: P.ro;
+    const riskColor = (risk) =>
+        risk === "Execution" ? P.em : risk === "Market" ? P.am : P.ro;
+
+    return(
+        <div>
+            <div style = {{ background: `linear-gradient(135deg, ${P.neb}, ${P.deep})`,
+                border: `1px solid ${P.vi}30`, borderRadius: 16, padding: "24px 28px", marginBottom: 24, }}>
+                    <div style = {{fontSize: 13, fontWeight: 600, color: P.txB, fontFamily: F, marginBottom: 8}}>
+                        AI-Powered Analysis
+                    </div>
+                    <div style = {{ fontSize: 11, color: P.txD, fontFamily: FM, marginBottom: 20}}>
+                        Uses Clause to analyse the thesis data and produce assessments. Each analysis sends the full data snapshot as context.
+                    </div>
+                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap"}}>
+                        {Object.entries(AI_PROMPTS).map(([key, prompt]) => (
+                            <button key={key} onClick={() => runAnalysis(key)} disabled={loading || !context}
+                                style={{
+                                    padding: "12px 20px", borderRadius: 10, cursor: loading ? "wait" : "pointer",
+                                    background: results[key] ? P.cyD : P.pan,
+                                    border: `1px solid ${results[key] ? P.cy + "40" : P.brd}`,
+                                    color: P.txB, fontFamily: F, fontSize: 12, fontWeight: 500,
+                                    opacity: loading && activePrompt !== key ? 0.5 : 1,
+                                    transition: "all 0.2s",
+                                }}>
+                                {activePrompt === key ? "Analyzing…" : prompt.label}
+                                <div style={{ fontSize: 9, color: P.txD, marginTop: 4 }}>{prompt.description}</div>
+                            </button>
+                        ))}
+                    </div>
+                </div>
+
+                {results.sentiment && results.sentiment.type === "json" && (
+                    <div style = {{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20}}>
+                        <GC title="Marrative -> Operational Score" sub="1 = pure vision talk, 5 = operation metrics" glow = {P.vi} style = {{gridColumn: "1/-1"}}>
+                            <ResponsiveContainer width="100%" height={300}>
+                                <BarChart data={results.sentiment.data.sort((a, b) => b.score - a.score)}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                                    <XAxis dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} />
+                                    <YAxis domain={[0, 5]} tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <ReferenceLine y={3} stroke={P.am} strokeDasharray="4 3" label={{ value: "Transition", fill: P.am, fontSize: 9 }} />
+                                    <Bar dataKey="score" name="Maturity Score" radius={[6, 6, 0, 0]}>
+                                        {results.sentiment.data.sort((a, b) => b.score - a.score).map((d, i) =>
+                                            <Cell key={i} fill={styleColor(d.style)} opacity={0.8} />
+                                        )}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </GC>
+                        <GC title= "Sentiment Detail" style={{gridColumn: "1/-1"}}>
+                            <DT compact columns = {[
+                                { key: "ticker", label: "Ticker", align: "left", bold: true, color: () => P.cy },
+                                { key: "score", label: "Score" },
+                                { key: "style", label: "Style", color: r => styleColor(r.style) },
+                                { key: "reasoning", label: "Reasoning", align: "left", color: () => P.txD },
+                            ]} data = {results.sentiment.data}/>
+                        </GC>
+                    </div>
+                )}
+                {results.riskFactors && results.riskFactors.type === "json" && (
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
+                        <GC title="Risk Maturity" sub="1 = earliest stage, 5 = most mature" glow={P.cy}>
+                            <ResponsiveContainer width="100%" height={340}>
+                                <BarChart data={results.riskFactors.data.sort((a, b) => b.maturity - a.maturity)} layout="vertical">
+                                    <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                                    <XAxis type="number" domain={[0, 5]} tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
+                                    <YAxis type="category" dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} width={48} />
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Bar dataKey="maturity" name="Maturity" radius={[0, 6, 6, 0]}>
+                                        {results.riskFactors.data.sort((a, b) => b.maturity - a.maturity).map((d, i) =>
+                                            <Cell key={i} fill={riskColor(d.primary_risk)} opacity={0.8} />
+                                        )}
+                                    </Bar>
+                                </BarChart>
+                            </ResponsiveContainer>
+                        </GC>
+                        <GC title="Risk Classification" glow={P.vi}>
+                            <DT compact columns={[
+                                { key: "ticker", label: "Ticker", align: "left", bold: true, color: () => P.cy },
+                                { key: "primary_risk", label: "Primary", color: r => riskColor(r.primary_risk) },
+                                { key: "secondary_risk", label: "Secondary", color: r => riskColor(r.secondary_risk) },
+                                { key: "maturity", label: "Maturity" },
+                                { key: "reasoning", label: "Reasoning", align: "left", color: () => P.txD },
+                            ]} data={results.riskFactors.data} />
+                        </GC>
+                    </div>
+                )}
+
+                {results.investmentMemo && results.investmentMemo.type === "text" && (
+                <GC title="Investment Memo" glow={P.cy} style={{ marginTop: 20 }}>
+                    <div style={{
+                        fontSize: 12, fontFamily: FM, color: P.txt, lineHeight: 1.7,
+                        whiteSpace: "pre-wrap", maxWidth: 800,
+                    }}>
+                        {results.investmentMemo.data}
+                    </div>
+                </GC>
+            )}
+
+            {/* Error display */}
+            {Object.entries(results).filter(([, v]) => v.type === "error").map(([key, v]) => (
+                <GC key={key} title={`Error: ${AI_PROMPTS[key].label}`}>
+                    <div style={{ color: P.ro, fontSize: 11, fontFamily: FM }}>{v.data}</div>
+                </GC>
+            ))}
+     
+        </div>
+    )
 }
 
 const TABS = ["Overview", "Fundamentals", "Valuation", "Regression", "Risk and Regimes", "Robustness", "AI Analysis"];
