@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import config
 from data import loaders
-from analysis import returns as R, regression, regimes, risk, robustness, valuation, profitability, synthesis, scorecard
+from analysis import returns as R, regression, regimes, risk, robustness, valuation, profitability, synthesis, scorecard, dilution, tam, hurdle
 
 app = FastAPI(title = "Space Economy Thesis API")
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
@@ -161,19 +161,40 @@ def get_scorecard():
     vt = valuation.valuation_table(data)
     prof_sum = profitability.profitability_summary(data)
     syn_sum = synthesis.synthesis_summary(data)
-
+    dil_sum = dilution.dilution_summary(data)
+    tam_sum = tam.tam_summary(data)
+    hrd = hurdle.space_vs_benchmark(data)
     signals = scorecard.build_scorecard(reg, regime, risk_df,
-                                         val_table=vt, prof_summary=prof_sum, syn_summary=syn_sum)
+                                         val_table=vt, prof_summary=prof_sum, syn_summary=syn_sum,
+                                         dilution_summary=dil_sum, tam_summary=tam_sum, hurdle_result=hrd)
     verdict = scorecard.compute_verdict(signals)
     return safe_json({"signals": signals, "verdict": verdict})
 
 @app.get("/api/dilution")
 def get_dilution():
     data = get_data()
+    dt = dilution.dilution_table(data)
+    summary = dilution.dilution_summary(data)
+    return safe_json({
+        "table": df_to_records(dt),
+        "summary": summary
+    })
     
 @app.get("/api/tam")
 def get_tam():
     data= get_data()
+    tt = tam.tam_table(data)
+    summary = tam.tam_summary(data)
+    return safe_json({
+        "table": df_to_records(tt),
+        "summary": summary
+    })
+
+@app.get("/api/hurdle")
+def get_hurdle():
+    data = get_data()
+    result = hurdle.space_vs_benchmark(data, benchmark="SPY")
+    return safe_json(result)
 
 @app.get("/api/ai-context")
 def get_ai_context():

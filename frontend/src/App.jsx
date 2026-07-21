@@ -209,6 +209,7 @@ function useApi(path){
 function OverviewTab(){
     const sc = useApi("scorecard");
     const prices = useApi("prices");
+    const hrd = useApi("hurdle")
 
     if(!sc) return <Loading />;
     const v = sc.verdict;
@@ -238,6 +239,24 @@ function OverviewTab(){
                     <SP label = "Max" value = {v.max_possible}/>
                 </div>
             </div>
+            {hrd && hrd.verdict && (
+                <div style={{
+                    background: hrd.compensated ? `${P.em}10` : `${P.ro}10`,
+                    border: `1px solid ${hrd.compensated ? P.em : P.ro}30`,
+                    borderRadius: 12, padding: "16px 24px", marginBottom: 20,
+                    display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16,
+                }}>
+                    <div>
+                        <div style={{ fontSize: 9, fontFamily: FM, color: P.txD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>Hurdle Rate Test</div>
+                        <div style={{ fontSize: 13, fontFamily: F, fontWeight: 600, color: hrd.compensated ? P.em : P.ro }}>{hrd.verdict}</div>
+                    </div>
+                    <div style={{ display: "flex", gap: 24 }}>
+                        <SP label="Space Sharpe" value={hrd.space_median_sharpe} color={P.cy} />
+                        <SP label="SPY Sharpe" value={hrd.benchmark_sharpe} color={P.txD} />
+                        <SP label="Premium" value={hrd.sharpe_premium > 0 ? `+${hrd.sharpe_premium}` : hrd.sharpe_premium} color={hrd.sharpe_premium > 0 ? P.em : P.ro} />
+                    </div>
+                </div>
+            )}
             <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:20}}>
                 <GC title="Scorecard" glow={P.cy}>
                     <DT compact columns={[
@@ -764,7 +783,130 @@ function AITab(){
     )
 }
 
-const TABS = ["Overview", "Fundamentals", "Valuation", "Regression", "Risk and Regimes", "Robustness", "AI Analysis"];
+function DilutionTab(){
+    const dil = useApi("dilution");
+    if(!dil) return <Loading />;
+    const table = (dil.table || []).filter(d => d.group === "pure_play");
+    const sum = dil.summary || {};
+
+    const sorted = [...table].filter(d=>d.share_growth_pct != null || d['share_growth_%'] != null)
+        .sort((a, b) => (b['share_growth_%'] ?? 0) - (a['share_growth_%'] ?? 0));
+    
+    return(
+        <div style={{display: "grid", gridTemplateColumns:"1fr 1fr", gap: 20}}>
+            <div style={{
+                gridColumn: "1/-1",
+                background: (sum.heavily_dilutive_count > sum.pure_play_total / 2) ? `${P.ro}10` : `${P.am}10`,
+                border: `1px solid ${(sum.heavily_dilutive_count > sum.pure_play_total / 2) ? P.ro : P.am}30`,
+                borderRadius: 12, padding: "16px 24px",
+                display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap",
+            }}>
+                <div>
+                    <div style={{fontSize: 9, fontFamily: FM, color: P.txD, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4}}>Dilution Impact</div>
+                    <div style={{fontSize: 13, fontFamily:F, fontWeight: 600, color: P.txB}}>
+                        {sum.heavily_dilutive_count}/{sum.pure_play_total} pure-plays have diluted shareholders {">"}50%
+                    </div>
+                    <SP label = "Median Share Growth" value ={sum['median_share_growth_%'] != null ? `${sum['median_share_growth_%']}` : '-'} color = {P.am}/>
+                    <SP label = "Median Dilution-Adj Return" value ={sum['median_dilution_adj_return_%'] != null ? `${sum['median_dilution_adj_return_%']}` : '-'} color = {sum["median_dilution_adj_return_%"] > 0 ? P.em : P.ro}/>
+                </div>
+            </div>
+                <GC title = "Share Count Growth %" sub = "Higher = More Dilutive" glow = {P.ro}>
+                    <ResponsiveContainer width="100%" height={340}>
+                        <BarChart data={sorted} layout="vertical">
+                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                            <XAxis type="number" tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
+                            <YAxis type="category" dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} width={48} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <ReferenceLine x={50} stroke={P.ro} strokeDasharray="4 3" label={{ value: "50%", fill: P.ro, fontSize: 9 }} />
+                            <Bar dataKey="share_growth_%" radius={[0, 6, 6, 0]}>
+                                {sorted.map((d, i) => <Cell key={i} fill={d["share_growth_%"] > 50 ? P.ro : P.am} opacity={0.75} />)}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </GC>
+                <GC title = "Price Return vs Dilution-Adjusted" sub = "What Shareholders Actually Earned" glow = {P.cy}>
+                    <ResponsiveContainer width="100%" height={340}>
+                        <BarChart data={table.filter(d=> d['price_return_%'] != null)}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                            <XAxis dataKey='ticker' tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} />
+                            <YAxis tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Legend wrapperStyle={{fontSize: 10, fontFamily: FM}}/>
+                            <ReferenceLine y = {0} stroke={P.txB} strokeWidth={0.5}/>
+                            <Bar dataKey="price_return_%" name = "Price Return" fill={P.cy} opacity={0.7} />
+                            <Bar dataKey="dilution_adj_return_%" name = "Dilution Adjusted" fill={P.vi} opacity={0.7} />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </GC>
+                <GC title="Full Dilution Table" style={{gridColumn: "1/-1"}}>
+                    <DT compact columns = {[
+                        { key: "ticker", label: "Ticker", align: "left", bold: true, color: () => P.cy },
+                        { key: "price_return_%", label: "Price Ret%", color: r => (r["price_return_%"] ?? 0) > 0 ? P.em : P.ro },
+                        { key: "share_growth_%", label: "Share Growth%", color: r => (r["share_growth_%"] ?? 0) > 50 ? P.ro : P.am },
+                        { key: "dilution_drag_%", label: "Drag%" },
+                        { key: "dilution_adj_return_%", label: "Adj Return%", color: r => (r["dilution_adj_return_%"] ?? 0) > 0 ? P.em : P.ro },
+                        { key: "heavily_dilutive", label: "Flag", render: r => r.heavily_dilutive ? "⚠" : "—", color: r => r.heavily_dilutive ? P.ro : P.txD }, 
+                    ]} data={table} />
+                </GC>
+            </div>
+    );
+
+}
+
+function TAMTab(){
+    const tamData = useApi("tam")
+    if (!tamData) return <Loading />;
+    const table = tamData.table || [];
+    const sum = tamData.summary || {};
+
+    return (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20}}>
+            <div style={{
+                gridColumn: "1/-1",
+                background: sum.stretch_count > sum.feasible_count ? `${P.ro}10` : `${P.em}10`,
+                border: `1px solid ${sum.stretch_count > sum.feasible_count ? P.ro : P.em}30`,
+                borderRadius: 12, padding: "16px 24px",
+                display: "flex", gap: 32, alignItems: "center", flexWrap: "wrap",
+            }}>
+                <div>
+                    <div style={{fontSize: 9, fontFamily: FM, color: P.txD, textTransform:"uppercase", letterSpacing: 1, marginBottom: 4}}>TAM Feasibility</div>
+                    <div style={{ fontSize: 13, fontFamily: F, fontWeight: 600, color: P.txB }}>
+                        {sum.feasible_count} feasible, {sum.stretch_count} stretch, {sum.no_data_count} no data — of {sum.total} names
+                    </div>
+                </div>
+                <SP label="Median Required Share" value = {sum['median_required_share_%'] != null ? `${sum['median_required_share_%']}%` : '-'} color={P.am}/>
+            </div>
+            <GC title = "Current vs Required Market Share" sub ="Required Share to Justify Valuation at Target P/S = 4" style={{gridColumn: "1/-1"}} glow={P.cy}>
+                <ResponsiveContainer width="100%" height={360}>
+                    <BarChart data={table.filter(d => d["current_share_%"] != null)}>
+                        <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                        <XAxis dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} />
+                        <YAxis tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} label={{ value: "% of TAM", angle: -90, position: "insideLeft", fill: P.txD, fontSize: 10, fontFamily: FM }} />
+                        <Tooltip content={<CustomTooltip />} />
+                        <Legend wrapperStyle={{ fontSize: 10, fontFamily: FM }} />
+                        <ReferenceLine y={30} stroke={P.ro} strokeDasharray="4 3" label={{ value: "30% ceiling", fill: P.ro, fontSize: 9 }} />
+                        <Bar dataKey="current_share_%" name="Current Share" fill={P.em} opacity={0.8} />
+                        <Bar dataKey="required_share_%" name="Required Share" fill={P.am} opacity={0.7} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </GC>
+            <GC title="TAM Detail" style={{ gridColumn: "1/-1" }}>
+                <DT compact columns={[
+                    { key: "ticker", label: "Ticker", align: "left", bold: true, color: () => P.cy },
+                    { key: "segment", label: "Segment", align: "left" },
+                    { key: "tam_bn", label: "TAM ($B)" },
+                    { key: "current_rev_bn", label: "Rev ($B)" },
+                    { key: "current_share_%", label: "Share%" },
+                    { key: "required_rev_bn", label: "Req Rev ($B)" },
+                    { key: "required_share_%", label: "Req Share%", color: r => (r["required_share_%"] ?? 0) > 30 ? P.ro : P.em },
+                    { key: "feasible", label: "Feasible", render: r => r.feasible === true ? "✓" : r.feasible === false ? "✗" : "—", color: r => r.feasible === true ? P.em : r.feasible === false ? P.ro : P.txD },
+                ]} data={table} />
+            </GC>
+        </div>
+    )
+}
+
+const TABS = ["Overview", "Fundamentals", "Valuation", "Dilution", "TAM", "Regression", "Risk and Regimes", "Robustness", "AI Analysis"];
 
 export default function App(){
     const [tab, setTab] = useState("Overview");
@@ -787,6 +929,8 @@ export default function App(){
             {tab==="Overview" && <OverviewTab />}
             {tab==="Fundamentals" && <FundamentalsTab />}
             {tab==="Valuation" && <ValuationTab />}
+            {tab === "Dilution" && <DilutionTab />}
+            {tab === "TAM" && <TAMTab />}
             {tab==="Regression" && <RegressionTab />}
             {tab==="Risk and Regimes" && <RiskTab />}
             {tab==="Robustness" && <RobustnessTab />}

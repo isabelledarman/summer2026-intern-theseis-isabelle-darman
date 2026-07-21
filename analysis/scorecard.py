@@ -1,7 +1,7 @@
 import pandas as pd
 import config
 
-def build_scorecard(reg, regime, risk_df: pd.DataFrame, *, risk_weight: float = 2.0 , spy_ann: float = 13.0,  val_table: pd.DataFrame | None = None, prof_summary: dict | None = None, syn_summary: dict | None = None) -> list[dict]:
+def build_scorecard(reg, regime, risk_df: pd.DataFrame, *, risk_weight: float = 2.0 , spy_ann: float = 13.0,  val_table: pd.DataFrame | None = None, prof_summary: dict | None = None, syn_summary: dict | None = None, dilution_summary: dict | None = None, tam_summary: dict | None = None, hurdle_result: dict | None = None) -> list[dict]:
     signals: list[dict] = []
     pure = risk_df[risk_df["group"] == "pure_play"]
 
@@ -30,6 +30,23 @@ def build_scorecard(reg, regime, risk_df: pd.DataFrame, *, risk_weight: float = 
             add("Valuation Resonableness", v, f"median implied CAGR needed: {med_cagr:.0f}%", risk_weight, "risk")
         else:
             add("Valuation Reasonableness", 0, 'n/a', risk_weight, 'risk')
+
+    if dilution_summary is not None:
+        heavy = dilution_summary.get("heavily_dilutive_count", 0)
+        total = dilution_summary.get("pure_play_total", 0)
+        med_sg = dilution_summary.get("median_share_growth_%")
+        if total > 0:
+            frac = heavy / total 
+            v = 1 if frac < 0.2 else (-1 if frac > 0.5 else 0)
+            add("Shareholed Dilution", v, f"{heavy}/{total} heavily dilutive (>50% share growth), "
+                f"median {med_sg}%", risk_weight, "risk")
+        else:
+            add("Shareholder Dilution", 0, "n/a", risk_weight, "risk")
+
+    if hurdle_result is not None and "compensated" in hurdle_result:
+        prem = hurdle_result.get("sharpe_premium", 0)
+        v = 1 if prem >0.1 else (-1 if prem < -0.1 else 0)
+        add("Hurdle Rate (Space vs SPY)", v, f"Sharpe Premiume = {prem:+.3f}", 3.0, "risk")
 
     if reg.slope is None:
         add("Revenue -> return link", 0, "n/a", 1, "return")
@@ -76,6 +93,18 @@ def build_scorecard(reg, regime, risk_df: pd.DataFrame, *, risk_weight: float = 
         else:
             add("Margins Improving", 0, "n/a", 1, "return")
 
+    if tam_summary is not None:
+        feasible = tam_summary.get("feasible_count", 0)
+        stretch = tam_summary.get("stretch_count", 0)
+        total = tam_summary.get("total")
+        med_req = tam_summary.get("median_required_share_%")
+        if feasible + stretch > 0:
+            v = 1 if feasible > stretch else (-1 if stretch > feasible else 0)
+            add("TAM Feasibility", v,
+                f"{feasible} feasible, {stretch} stretch of {total}; "
+                f"median required share {med_req}%", 2.0, "return")
+        else:
+            add("TAM Feasibility", 0, "n/a", 2.0, "return")
     
     return signals
 
