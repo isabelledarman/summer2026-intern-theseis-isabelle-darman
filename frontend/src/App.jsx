@@ -26,7 +26,7 @@ const AI_PROMPTS = {
 
 Base your assessment on the financial data provided — companies with strong fundamental returns, improving margins, and FCF positivity are more likely to have shifted to operational language. Companies with narrative verdicts, high dilution, and negative FCF are likely still in pitch mode.
 
-Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, score (1-5), style ("Narrative" | "Transitioning" | "Operational"), reasoning (one sentence).
+Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, score (1-5), commStyle ("Narrative" | "Transitioning" | "Operational"), reasoning (one sentence).
 
 DATA:
 ${ctx}`,
@@ -66,6 +66,29 @@ DATA:
 ${ctx}`,
     },
 };
+
+function SimpleMD({ text }) {
+    const lines = text.split('\n');
+    return (
+        <div>
+            {lines.map((line, i) => {
+                let html = line
+                    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e8eeff">$1</strong>')
+                    .replace(/\*(.+?)\*/g, '<em>$1</em>');
+                
+                if (line.startsWith('## ')) return <h3 key={i} style={{ color: P.cy, fontSize: 14, fontFamily: F, margin: '16px 0 8px' }}>{line.slice(3)}</h3>;
+                if (line.startsWith('# ')) return <h2 key={i} style={{ color: P.cy, fontSize: 16, fontFamily: F, margin: '20px 0 8px' }}>{line.slice(2)}</h2>;
+                if (line.trim().startsWith('* ') || line.trim().startsWith('- ')) {
+                    const content = line.trim().slice(2);
+                    let bulletHtml = content.replace(/\*\*(.+?)\*\*/g, '<strong style="color:#e8eeff">$1</strong>').replace(/\*(.+?)\*/g, '<em>$1</em>');
+                    return <div key={i} style={{ paddingLeft: 16, marginBottom: 4 }} dangerouslySetInnerHTML={{ __html: '• ' + bulletHtml }} />;
+                }
+                if (line.trim() === '') return <div key={i} style={{ height: 12 }} />;
+                return <div key={i} style={{ marginBottom: 6 }} dangerouslySetInnerHTML={{ __html: html }} />;
+            })}
+        </div>
+    );
+}
 
 function Starfield() {
   const ref = useRef(null);
@@ -195,7 +218,7 @@ const CDot = (props) => {
     <g>
       <circle cx={cx} cy={cy} r={8} fill={col} opacity={0.12}/>
       <circle cx={cx} cy={cy} r={4} fill={col} opacity={0.9}/>
-      <text x={cx+10} y={cy-8} fill={P.star} fontSize={9} fontFamily={FM} opacity={0.8}>{payload.ticker}</text>
+      <text x={cx+10} y={cy-8} fill={col} fontSize={9} fontFamily={FM} opacity={0.8}>{payload.ticker}</text>
     </g>
   );
 };
@@ -349,7 +372,7 @@ function ValuationTab(){
 
     const cols = [
         {key:"ticker", label:"Ticker", align:"left", bold:true, color: r=>r.group==="pure_play"?P.cy:P.div},
-        {key:"pr_ratio", label:"P/S"}, {key:"ev_to_rev", label:"EV/Rev"},
+        {key:"ps_ratio", label:"P/S"}, {key:"ev_to_rev", label:"EV/Rev"},
         {key:"rev_growth_%", label:"Rev%", color: r=>(r['rev_growth_%']??0)>0?P.em:P.ro},
         {key:"ps_to_growth", label:"PS/G", render:r=>r.ps_to_growth!=null?r.ps_to_growth.toFixed?r.ps_to_growth.toFixed(2):r.ps_to_growth:"—"},
         {key:"implied_required_cagr_%",label:"Impl CAGR%",color:r=>{const c=r["implied_required_cagr_%"];return c==null?P.txD:c<20?P.em:c>50?P.ro:P.am;}},
@@ -368,11 +391,11 @@ function ValuationTab(){
                         <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
                         <XAxis type ="number" dataKey="rev_growth_%" tick={{fill:P.txD,fontSize:9, fontFamily: FM}}
                         label={{value:"Revenue Growth %", position: "insideBottom", offset:-5, fill:P.txD, fontSize:10, fontFamily:FM}}/>
-                        <YAxis type="number" dataKey="pr_ratio" tick={{fill:P.txD,fontSize:9, fontFamily:FM}}
-                        label={{value:"P/R", angle:-90, position:"insideLeft", fill:P.txD,fontSize:10, fontFamily: FM}}/>
+                        <YAxis type="number" dataKey="ps_ratio" tick={{fill:P.txD,fontSize:9, fontFamily:FM}}
+                        label={{value:"P/S", angle:-90, position:"insideLeft", fill:P.txD,fontSize:10, fontFamily: FM}}/>
                         <Tooltip content={<CustomTooltip/>}/>
-                        <ReferenceLine y={4} stroke={P.am} strokeDasharray="4 3" label = {{value:"target PS=4", fill:P.am, fontSize:9}}/>
-                        <Scatter data={all} shape={<CDot/>}/>
+                        <ReferenceLine y={4} stroke={P.am} strokeDasharray="4 3" label = {{value:"target PS=4", fill:P.am, fontSize:9, position:"insideBottomRight"}}/>
+                        <Scatter data={all.map(d => ({...d, _color: d.group === "pure_play" ? P.cy : P.div}))} shape={<CDot/>}/>
                     </ScatterChart>
                 </ResponsiveContainer>
             </GC>
@@ -432,7 +455,7 @@ function RegressionTab(){
     return(
         <GC title="Revenue Growth -> Stock Return" sub={`OLS - Slope = ${reg.slope?.toFixed(3)}, R-Squared=${reg.r_squared?.toFixed(2)}, p=${reg.p_value.toFixed(3)}, n=${reg.n}${reg.low_power?" (low power)": ""}`} glow={P.cy} style={{maxWdith:900}}>
             <ResponsiveContainer width="100%" height={420}>
-                <ComposedChart data={reg.points}>
+                <ComposedChart data={reg.points.map(d => ({...d, _color: d.group === "pure_play" ? P.cy : P.div}))}>
                     <CartesianGrid strokeDasharray="3 3" stroke={P.brd}/>
                     <XAxis type="number" dataKey="revenue_growth" tick={{fill:P.txD, fontSize:9, fontFamily:FM}}
                     label={{value:"Revenue Growth %", position:"insideBottom", offset:-5, fill: P.txD, fontSize: 10, fontFamily:FM}}/>
@@ -643,7 +666,7 @@ function AITab(){
         setLoading(true);
         try{
             const prompt = AI_PROMPTS[key];
-            const response = await fetch("https://api.anthropic.com/v1/messages", {
+            const response = await fetch("/api/ai-analyze", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
@@ -653,6 +676,9 @@ function AITab(){
                 }),
             });
             const data = await response.json();
+            if(data.error || !data.content){
+                throw new Error(data.error?.message || data.error || "No response");
+            }
             const text = data.content?.map(i => i.text || "").join("\n") || "";
 
             let parsed;
@@ -684,9 +710,9 @@ function AITab(){
                         AI-Powered Analysis
                     </div>
                     <div style = {{ fontSize: 11, color: P.txD, fontFamily: FM, marginBottom: 20}}>
-                        Uses Clause to analyse the thesis data and produce assessments. Each analysis sends the full data snapshot as context.
+                        Uses Gemini to analyse the thesis data and produce assessments. Each analysis sends the full data snapshot as context.
                     </div>
-                    <div style={{ display: "flex", gap: 12, flexWrap: "wrap"}}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center"}}>
                         {Object.entries(AI_PROMPTS).map(([key, prompt]) => (
                             <button key={key} onClick={() => runAnalysis(key)} disabled={loading || !context}
                                 style={{
@@ -706,16 +732,16 @@ function AITab(){
 
                 {results.sentiment && results.sentiment.type === "json" && (
                     <div style = {{display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20}}>
-                        <GC title="Marrative -> Operational Score" sub="1 = pure vision talk, 5 = operation metrics" glow = {P.vi} style = {{gridColumn: "1/-1"}}>
+                        <GC title="Narrative -> Operational Score" sub="1 = pure vision talk, 5 = operational metrics" glow = {P.vi} style = {{gridColumn: "1/-1"}}>
                             <ResponsiveContainer width="100%" height={300}>
-                                <BarChart data={results.sentiment.data.sort((a, b) => b.score - a.score)}>
+                                <BarChart data={[...results.sentiment.data].sort((a, b) => b.score - a.score)}>
                                     <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
                                     <XAxis dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} />
                                     <YAxis domain={[0, 5]} tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
                                     <Tooltip content={<CustomTooltip />} />
                                     <ReferenceLine y={3} stroke={P.am} strokeDasharray="4 3" label={{ value: "Transition", fill: P.am, fontSize: 9 }} />
                                     <Bar dataKey="score" name="Maturity Score" radius={[6, 6, 0, 0]}>
-                                        {results.sentiment.data.sort((a, b) => b.score - a.score).map((d, i) =>
+                                        {[...results.sentiment.data].sort((a, b) => b.score - a.score).map((d, i) =>
                                             <Cell key={i} fill={styleColor(d.style)} opacity={0.8} />
                                         )}
                                     </Bar>
@@ -736,13 +762,13 @@ function AITab(){
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, marginTop: 20 }}>
                         <GC title="Risk Maturity" sub="1 = earliest stage, 5 = most mature" glow={P.cy}>
                             <ResponsiveContainer width="100%" height={340}>
-                                <BarChart data={results.riskFactors.data.sort((a, b) => b.maturity - a.maturity)} layout="vertical">
+                                <BarChart data={[...results.riskFactors.data].sort((a, b) => b.maturity - a.maturity)} layout="vertical">
                                     <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
                                     <XAxis type="number" domain={[0, 5]} tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
                                     <YAxis type="category" dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} width={48} />
                                     <Tooltip content={<CustomTooltip />} />
                                     <Bar dataKey="maturity" name="Maturity" radius={[0, 6, 6, 0]}>
-                                        {results.riskFactors.data.sort((a, b) => b.maturity - a.maturity).map((d, i) =>
+                                        {[...results.riskFactors.data].sort((a, b) => b.maturity - a.maturity).map((d, i) =>
                                             <Cell key={i} fill={riskColor(d.primary_risk)} opacity={0.8} />
                                         )}
                                     </Bar>
@@ -767,12 +793,11 @@ function AITab(){
                         fontSize: 12, fontFamily: FM, color: P.txt, lineHeight: 1.7,
                         whiteSpace: "pre-wrap", maxWidth: 800,
                     }}>
-                        {results.investmentMemo.data}
+                        <SimpleMD text={results.investmentMemo.data}/>
                     </div>
                 </GC>
             )}
 
-            {/* Error display */}
             {Object.entries(results).filter(([, v]) => v.type === "error").map(([key, v]) => (
                 <GC key={key} title={`Error: ${AI_PROMPTS[key].label}`}>
                     <div style={{ color: P.ro, fontSize: 11, fontFamily: FM }}>{v.data}</div>
@@ -812,12 +837,11 @@ function DilutionTab(){
             </div>
                 <GC title = "Share Count Growth %" sub = "Higher = More Dilutive" glow = {P.ro}>
                     <ResponsiveContainer width="100%" height={340}>
-                        <BarChart data={sorted} layout="vertical">
-                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
+                        <BarChart data={sorted.map(d => ({...d, _color: d["share_growth_%"] > 50 ? P.ro : P.am}))} layout="vertical">                            <CartesianGrid strokeDasharray="3 3" stroke={P.brd} />
                             <XAxis type="number" tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} />
                             <YAxis type="category" dataKey="ticker" tick={{ fill: P.star, fontSize: 10, fontFamily: FM }} width={48} />
                             <Tooltip content={<CustomTooltip />} />
-                            <ReferenceLine x={50} stroke={P.ro} strokeDasharray="4 3" label={{ value: "50%", fill: P.ro, fontSize: 9 }} />
+                            <ReferenceLine x={50} stroke={P.ro} strokeDasharray="4 3" label={{ value: "50%", fill: P.ro, fontSize: 9, position:"insideBottomRight" }} />
                             <Bar dataKey="share_growth_%" radius={[0, 6, 6, 0]}>
                                 {sorted.map((d, i) => <Cell key={i} fill={d["share_growth_%"] > 50 ? P.ro : P.am} opacity={0.75} />)}
                             </Bar>
@@ -884,7 +908,7 @@ function TAMTab(){
                         <YAxis tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} label={{ value: "% of TAM", angle: -90, position: "insideLeft", fill: P.txD, fontSize: 10, fontFamily: FM }} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 10, fontFamily: FM }} />
-                        <ReferenceLine y={30} stroke={P.ro} strokeDasharray="4 3" label={{ value: "30% ceiling", fill: P.ro, fontSize: 9 }} />
+                        <ReferenceLine y={30} stroke={P.ro} strokeDasharray="4 3" label={{ value: "30% ceiling", fill: P.ro, fontSize: 9, offset: 10, position:"insideTopRight"}} />
                         <Bar dataKey="current_share_%" name="Current Share" fill={P.em} opacity={0.8} />
                         <Bar dataKey="required_share_%" name="Required Share" fill={P.am} opacity={0.7} />
                     </BarChart>
@@ -893,7 +917,6 @@ function TAMTab(){
             <GC title="TAM Detail" style={{ gridColumn: "1/-1" }}>
                 <DT compact columns={[
                     { key: "ticker", label: "Ticker", align: "left", bold: true, color: () => P.cy },
-                    { key: "segment", label: "Segment", align: "left" },
                     { key: "tam_bn", label: "TAM ($B)" },
                     { key: "current_rev_bn", label: "Rev ($B)" },
                     { key: "current_share_%", label: "Share%" },
@@ -906,7 +929,17 @@ function TAMTab(){
     )
 }
 
-const TABS = ["Overview", "Fundamentals", "Valuation", "Dilution", "TAM", "Regression", "Risk and Regimes", "Robustness", "AI Analysis"];
+function SignalScannerTab(){
+    const [signals, setSignals] = useState(null);
+
+    return(
+        <div>
+
+        </div>
+    )
+}
+
+const TABS = ["Overview", "Fundamentals", "Valuation", "Dilution", "TAM", "Regression", "Risk and Regimes", "Signal Scanner", "AI Analysis"];
 
 export default function App(){
     const [tab, setTab] = useState("Overview");
@@ -933,7 +966,7 @@ export default function App(){
             {tab === "TAM" && <TAMTab />}
             {tab==="Regression" && <RegressionTab />}
             {tab==="Risk and Regimes" && <RiskTab />}
-            {tab==="Robustness" && <RobustnessTab />}
+            {tab === "Signal Scanner" && <SignalScannerTab />}
             {tab==="AI Analysis" && <AITab />}
         </div>
         </div>

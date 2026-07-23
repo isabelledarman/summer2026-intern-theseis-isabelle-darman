@@ -5,21 +5,21 @@ from analysis import returns as R
 from analysis import valuation as Val
 
 _DEFAULT_TAM = {
-    "RKLB": {"segment": "Launch Services", "tam_bn": 32},
+    "RKLB": {"tam_bn": 32},
     # Earth observation / geospatial
-    "PL":   {"segment": "Earth Observation", "tam_bn": 8},
-    "BKSY": {"segment": "Earth Observation", "tam_bn": 8},
-    "SPIR": {"segment": "Weather & Climate Data", "tam_bn": 4},
+    "PL":   {"tam_bn": 8},
+    "BKSY": {"tam_bn": 8},
+    "SPIR": {"tam_bn": 4},
     # Satellite communications
-    "IRDM": {"segment": "Satellite Comms (Narrowband)", "tam_bn": 6},
-    "VSAT": {"segment": "Satellite Comms (Broadband)", "tam_bn": 18},
-    "ASTS": {"segment": "Direct-to-Cell Satellite", "tam_bn": 16},
+    "IRDM": {"tam_bn": 6},
+    "VSAT": {"tam_bn": 18},
+    "ASTS": {"tam_bn": 16},
     # Space infrastructure / in-space services
-    "RDW":  {"segment": "Space Structures / Mfg", "tam_bn": 5},
-    "SATL": {"segment": "Satellite Bus / Mfg", "tam_bn": 7},
-    "LUNR": {"segment": "Lunar Services", "tam_bn": 3},
+    "RDW":  {"tam_bn": 5},
+    "SATL": {"tam_bn": 7},
+    "LUNR": {"tam_bn": 3},
     # Defense-adjacent
-    "KTOS": {"segment": "Space & Drone Defense", "tam_bn": 12},
+    "KTOS": {"tam_bn": 12},
 }
 
 def get_tam_map() -> dict:
@@ -30,7 +30,6 @@ def tam_penetration(data, ticker: str, target_ps: float = 4.0, years: int = 5) -
     out = {
         "ticker": ticker,
         "group": config.classify(ticker),
-        "sengment": None,
         "tam_bn": None,
         "current_rev_bn": None,
         "current_share_%": None,
@@ -44,7 +43,6 @@ def tam_penetration(data, ticker: str, target_ps: float = 4.0, years: int = 5) -
         return out
     
     info = tam_map[ticker]
-    out['sengment'] = info['segment']
     out['tam_bn'] = info['tam_bn']
 
     entry = data.financials.get(ticker)

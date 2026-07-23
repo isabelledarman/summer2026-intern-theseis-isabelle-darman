@@ -1,5 +1,9 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from dotenv import load_dotenv
+load_dotenv()
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".." ))
 
 from fastapi import FastAPI, Request
@@ -235,29 +239,73 @@ def get_ai_context():
 
 @app.post("/api/ai-analyze")
 async def ai_analyze(request: Request):
-    """Proxy AI requests to Anthropic API to avoid browser CORS issues."""
     body = await request.json()
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return {"error": "ANTHROPIC_API_KEY not set in environment"}
- 
+        return {"error": "GEMINI_API_KEY not set in environment"}
+
     async with httpx.AsyncClient(timeout=60) as client:
         resp = await client.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-            },
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}",
+            headers={"Content-Type": "application/json"},
             json={
-                "model": body.get("model", "claude-sonnet-4-6"),
-                "max_tokens": body.get("max_tokens", 1000),
-                "messages": body.get("messages", []),
+                "contents": [{"parts": [{"text": body.get("messages", [{}])[0].get("content", "")}]}],
             },
         )
-        return resp.json()
- 
+        result = resp.json()
+        print("GEMINI RESPONSE:", result)
 
+        try:
+            text = result["candidates"][0]["content"]["parts"][0]["text"]
+            return {"content": [{"type": "text", "text": text}]}
+        except (KeyError, IndexError):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                content={"error": {"message": str(result)}},
+                status_code=400
+            )
+        
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port = 8000)
+
+@app.post("/api/ai-news-signal")
+async def ai_news_signal(request: Request): 
+    body = await request.json()
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return {"error": "GEMINI API KEY NOT FOUND"}
+    
+    tickers = body.get("ticker", [])
+    ticker_str = ", ".join(tickers)
+
+    prompt=f"""Search for the latest news (past 2 weeks) on these commercial space companies: {ticker_str}.
+
+For each company, find 1-2 recent news items and based on the news sentiment and developments, assign a signal.
+
+Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys:
+- ticker (string)
+- signal ("BUY" | "HOLD" | "SELL")
+- confidence (1-5, where 5 = very confident)
+- headline (string - the most impactful recent headline, paraphrased)
+- catalyst (string - one sentence on what's driving the signal)
+- risk (string - one sentence on what could go wrong)"""
+    
+    async with httpx.AsyncClient(timeout=90) as client:
+        resp = await client.post(
+            f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}",
+            headers = {"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "tools": [{"google_search": {}}],
+            },
+        )
+        result = resp.json()
+        print("NEWS SIGNAL RESPONSE:", result)
+        try:
+            text = result['candidate'][0]['content']['parts']
+            return {"content": [{"type": "text", "text": text}]}
+        except (KeyError, IndexError):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(content={"error": str(result)}, status_code=400)
+    
