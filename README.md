@@ -8,9 +8,9 @@ A Gemini API key (for the AI Analysis and Signal Scanner tabs)
 A FRED API key
 
 ## Frontend
-cd frontend
+cd frontend/src
 npm install
 
 ## Backend (from project root)
 create a .env file and put your Gemini API Key and FRED API Key
-python api.py
+run python api.py
