@@ -18,13 +18,62 @@ const F = "'Space Grotesk', 'Inter', system-ui, sans-serif";
 const FM = "'Space Mono', 'JetBrains Mono', monospace";
 const ttS = {background:P.panS,border:`1px solid ${P.brd}`, borderRadius: 8, fontSize:12, color: P.txB, boxShadow:"0 8px 32px rgba(0,0,0,0.5)"};
 
+const RISK_PROFILES = {
+    conservative: {
+        label: "Conservative",
+        color: "#4fc3f7",
+        criteria: `RISK TOLERANCE: CONSERVATIVE
+- Require FCF-positive for any favorable score; negative FCF is an automatic red flag
+- Share dilution above 30% is heavily penalized (not 50%)
+- Runway under 3 years = critical concern
+- Only "Earned" verdicts count positively; "Mixed" is treated as negative
+- P/S above 8x is considered overvalued regardless of growth
+- Demand a Sharpe ratio above 0.5 to consider risk-adjusted returns acceptable
+- Position sizing should be minimal (1-2% max) given the speculative nature
+- Default to AVOID unless evidence is overwhelming`,
+    },
+    moderate: {
+    label: "Moderate",
+    emoji: "⚖️",
+    color: "#ffd54f",
+    criteria: `RISK TOLERANCE: MODERATE (thesis-aligned)
+    - The commercial space sector is REAL but NOT YET DERISKED — more narrative than earned at the sector level
+    - The sector as a whole is NOT investable as a basket; it is only investable on a name-by-name basis where fundamentals justify it
+    - FCF trajectory matters more than current profitability — improving is acceptable, but still-negative with no trend is a red flag
+    - Share dilution above 50% is concerning; under 30% is fine
+    - Runway under 2 years is a serious concern given how capital-intensive space is
+    - "Earned" verdicts are the only names worth owning; "Mixed" names are watchlist-only; "Narrative" names should be avoided
+    - P/S up to 12x can be justified ONLY with demonstrated revenue growth, not projected TAM capture
+    - Sharpe near 0 is tolerable for individual names with strong fundamental trajectories, but the sector median Sharpe confirms the risk is real
+    - Position sizing: 2-4% per name for the strongest 2-3 names only, NOT a sector-wide allocation
+    - The verdict should reflect that a few names have earned their valuations through operational progress, but the majority remain speculative and narrative-driven
+    - Frame the conclusion around selectivity: the opportunity is real but narrow`,
+},
+    aggressive: {
+        label: "Aggressive",
+        color: "#ff8a65",
+        criteria: `RISK TOLERANCE: AGGRESSIVE / GROWTH-SEEKING
+- FCF negativity is expected and acceptable for pre-profit growth companies
+- Dilution is the cost of scaling; only penalize if >100% with no revenue growth to show for it
+- Runway under 1 year is the only real concern
+- Even "Narrative" verdicts can be positive if TAM is large and management is executing
+- P/S up to 20x is justified for high-growth names in expanding TAMs
+- Negative Sharpe is tolerable for high-conviction asymmetric bets
+- Position sizing 5-10%+ for the sector; this is a generational opportunity
+- Default to BUY unless the company is clearly failing`,
+    },
+};
 const AI_PROMPTS = {
     sentiment: {
         label: "Earnings Call Sentiment",
         description: "Score each company's management language: are they talking revenue milestones or still pitching TAM & vision?",
-        buildPrompt: (ctx) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, score each company's likely management communication style on a scale from 1 (pure narrative/vision/TAM talk) to 5 (operational metrics, revenue milestones, margin targets).
+        buildPrompt: (ctx, riskProfile) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, score each company's likely management communication style on a scale from 1 (pure narrative/vision/TAM talk) to 5 (operational metrics, revenue milestones, margin targets).
 
 Base your assessment on the financial data provided — companies with strong fundamental returns, improving margins, and FCF positivity are more likely to have shifted to operational language. Companies with narrative verdicts, high dilution, and negative FCF are likely still in pitch mode.
+
+${riskProfile}
+
+Apply the risk tolerance above when scoring: a conservative lens should be stricter about what counts as "Operational" (require strong FCF + margins), while an aggressive lens should be more generous (early revenue traction can count as operational progress).
 
 Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, score (1-5), commStyle ("Narrative" | "Transitioning" | "Operational"), reasoning (one sentence).
 
@@ -34,7 +83,7 @@ ${ctx}`,
     riskFactors: {
         label: "Risk Profile Classification",
         description: "Classify each company's dominant risk type: execution, market, or financial.",
-        buildPrompt: (ctx) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, classify each company's dominant risk type based on the financial evidence.
+        buildPrompt: (ctx, riskProfile) => `You are a finance research analyst. Given the following data snapshot for 11 pure-play space companies, classify each company's dominant risk type based on the financial evidence.
 
 Risk types:
 - "Financial" = might run out of money (negative FCF, low runway, high dilution)
@@ -42,6 +91,10 @@ Risk types:
 - "Execution" = demand exists but company might not deliver (has revenue but margins weak)
 
 Companies further along their maturity journey shift from Financial→Market→Execution risk.
+
+${riskProfile}
+
+Apply the risk tolerance above when assigning maturity scores: a conservative lens should require stronger evidence before rating a company as mature (4-5), while an aggressive lens can credit early momentum more generously.
 
 Return ONLY valid JSON (no markdown, no backticks) as an array of objects with keys: ticker, primary_risk ("Financial" | "Market" | "Execution"), secondary_risk, maturity (1-5 where 5=most mature), reasoning (one sentence).
 
@@ -51,16 +104,19 @@ ${ctx}`,
     investmentMemo: {
         label: "Investment Memo",
         description: "Generate a structured investment thesis with a clear BUY / AVOID verdict for the sector.",
-        buildPrompt: (ctx) => `You are a senior portfolio strategist writing a decisive investment memo. Based on the data below, write a 400-word investment memo on the commercial space sector.
+        buildPrompt: (ctx, riskProfile) => `You are a senior portfolio strategist writing a decisive investment memo. Based on the data below, write a 400-word investment memo on the commercial space sector.
 
+${riskProfile}
 Structure:
-1. VERDICT (one sentence: "The commercial space sector IS / IS NOT investable for a growth-oriented portfolio because...")
+1. VERDICT (one sentence: "The commercial space sector IS / IS NOT investable for a [risk tolerance level] portfolio because...")
 2. THE BULL CASE (2-3 strongest evidence points from the data)
 3. THE BEAR CASE (2-3 strongest counter-evidence)
-4. NAME-LEVEL PICKS (which 2-3 names have the best risk/reward based on the data, and which 2-3 should be avoided)
-5. POSITION SIZING (given the risk profile, what allocation % would be appropriate)
+4. NAME-LEVEL PICKS (which 2-3 names have the best risk/reward given the stated risk tolerance, and which 2-3 should be avoided)
+5. POSITION SIZING (calibrate allocation % specifically to the risk tolerance above)
 
-Be decisive. Do not hedge. The data should drive a clear answer.
+Be decisive. The risk tolerance should clearly shift your verdict — a conservative investor might AVOID what an aggressive investor would BUY. Let the risk lens drive the answer alongside the data.
+
+Do not include a title or header line — start directly with the VERDICT section.
 
 DATA:
 ${ctx}`,
@@ -374,7 +430,6 @@ function ValuationTab(){
         {key:"ticker", label:"Ticker", align:"left", bold:true, color: r=>r.group==="pure_play"?P.cy:P.div},
         {key:"ps_ratio", label:"P/S"}, {key:"ev_to_rev", label:"EV/Rev"},
         {key:"rev_growth_%", label:"Rev%", color: r=>(r['rev_growth_%']??0)>0?P.em:P.ro},
-        {key:"ps_to_growth", label:"PS/G", render:r=>r.ps_to_growth!=null?r.ps_to_growth.toFixed?r.ps_to_growth.toFixed(2):r.ps_to_growth:"—"},
         {key:"implied_required_cagr_%",label:"Impl CAGR%",color:r=>{const c=r["implied_required_cagr_%"];return c==null?P.txD:c<20?P.em:c>50?P.ro:P.am;}},
         {key:"market_cap",label:"Mkt Cap",render:r=>{const m=r.market_cap;return m==null?"—":m>=1e9?`$${(m/1e9).toFixed(1)}B`:`$${(m/1e6).toFixed(0)}M`;}},
 
@@ -655,6 +710,7 @@ function AITab(){
     const [loading, setLoading] = useState(false);
     const [results, setResults] = useState({});
     const [activePrompt, setActivePrompt] = useState(null);
+    const [riskTolerance, setRiskTolerance] = useState("moderate")
 
     useEffect(() => {
         api("ai-context").then(d => setContext(d.context)).catch(console.error);
@@ -672,7 +728,7 @@ function AITab(){
                 body: JSON.stringify({
                     model: "claude-sonnet-4-6",
                     max_tokens: 1000,
-                    messages: [{ role: "user", content: prompt.buildPrompt(context) }],
+                    messages: [{ role: "user", content: prompt.buildPrompt(context, RISK_PROFILES[riskTolerance].criteria) }],
                 }),
             });
             const data = await response.json();
@@ -711,6 +767,31 @@ function AITab(){
                     </div>
                     <div style = {{ fontSize: 11, color: P.txD, fontFamily: FM, marginBottom: 20}}>
                         Uses Gemini to analyse the thesis data and produce assessments. Each analysis sends the full data snapshot as context.
+                    </div>
+                    <div style = {{marginBottom: 20}}>
+                        <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, color: P.txD, textTransform: "uppercase", marginBottom: 10, fontFamily: FM }}>
+                            Risk Tolerance
+                        </div>
+                        <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
+                            {Object.entries(RISK_PROFILES).map(([key, profile]) => (
+                                <button key={key} onClick={() => { setRiskTolerance(key); setResults({}); }}
+                                    style={{
+                                        padding: "10px 20px", borderRadius: 10, cursor: "pointer",
+                                        background: riskTolerance === key ? `${profile.color}20` : P.pan,
+                                        border: `1px solid ${riskTolerance === key ? profile.color : P.brd}`,
+                                        color: riskTolerance === key ? profile.color : P.txD,
+                                        fontFamily: F, fontSize: 12, fontWeight: riskTolerance === key ? 700 : 400,
+                                        transition: "all 0.2s",
+                                    }}>
+                                    {profile.label}
+                                </button>
+                            ))}
+                        </div>
+                        <div style={{ fontSize: 9, color: RISK_PROFILES[riskTolerance].color, fontFamily: FM, textAlign: "center", marginTop: 8, opacity: 0.8 }}>
+                            {riskTolerance === "conservative" && "Strict thresholds — FCF required, low dilution tolerance, favors AVOID"}
+                            {riskTolerance === "moderate" && "Balanced view — weighs trajectory, nuanced verdicts"}
+                            {riskTolerance === "aggressive" && "Growth-seeking — tolerates losses for upside, favors BUY on momentum"}
+                        </div>
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center"}}>
                         {Object.entries(AI_PROMPTS).map(([key, prompt]) => (
@@ -908,7 +989,7 @@ function TAMTab(){
                         <YAxis tick={{ fill: P.txD, fontSize: 9, fontFamily: FM }} label={{ value: "% of TAM", angle: -90, position: "insideLeft", fill: P.txD, fontSize: 10, fontFamily: FM }} />
                         <Tooltip content={<CustomTooltip />} />
                         <Legend wrapperStyle={{ fontSize: 10, fontFamily: FM }} />
-                        <ReferenceLine y={30} stroke={P.ro} strokeDasharray="4 3" label={{ value: "30% ceiling", fill: P.ro, fontSize: 9, offset: 10, position:"insideTopRight"}} />
+                        <ReferenceLine y={20} stroke={P.ro} strokeDasharray="4 3" label={{ value: "20% ceiling", fill: P.ro, fontSize: 9, offset: 10, position:"insideTopRight"}} />
                         <Bar dataKey="current_share_%" name="Current Share" fill={P.em} opacity={0.8} />
                         <Bar dataKey="required_share_%" name="Required Share" fill={P.am} opacity={0.7} />
                     </BarChart>
@@ -921,7 +1002,7 @@ function TAMTab(){
                     { key: "current_rev_bn", label: "Rev ($B)" },
                     { key: "current_share_%", label: "Share%" },
                     { key: "required_rev_bn", label: "Req Rev ($B)" },
-                    { key: "required_share_%", label: "Req Share%", color: r => (r["required_share_%"] ?? 0) > 30 ? P.ro : P.em },
+                    { key: "required_share_%", label: "Req Share%", color: r => (r["required_share_%"] ?? 0) > 20 ? P.ro : P.em },
                     { key: "feasible", label: "Feasible", render: r => r.feasible === true ? "✓" : r.feasible === false ? "✗" : "—", color: r => r.feasible === true ? P.em : r.feasible === false ? P.ro : P.txD },
                 ]} data={table} />
             </GC>
@@ -929,14 +1010,270 @@ function TAMTab(){
     )
 }
 
-function SignalScannerTab(){
+function SignalScannerTab() {
     const [signals, setSignals] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [scanPhase, setScanPhase] = useState(0);
+    const [error, setError] = useState(null);
+    const intervalRef = useRef(null);
 
-    return(
+    const TICKERS = ["RKLB","PL","IRDM","VSAT","ASTS","RDW","KTOS","SATL","LUNR","BKSY","SPIR"];
+
+    const runScan = async () => {
+        setLoading(true);
+        setError(null);
+        setScanPhase(0);
+        intervalRef.current = setInterval(() => setScanPhase(p => p + 1), 1800);
+        try {
+            const response = await fetch("/api/ai-news-signal", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tickers: TICKERS }),
+            });
+            const data = await response.json();
+            if (data.error || !data.content) throw new Error(data.error?.message || data.error || "No response");
+            const text = data.content.map(i => i.text || "").join("\n");
+            const clean = text.replace(/```json|```/g, "").trim();
+            setSignals(JSON.parse(clean));
+        } catch (err) {
+            setError(err.message);
+        } finally {
+            setLoading(false);
+            clearInterval(intervalRef.current);
+        }
+    };
+
+    const scanMessages = [
+        "Scanning orbital frequencies...",
+        "Intercepting market telemetry...",
+        "Decoding news transmissions...",
+        "Correlating sentiment vectors...",
+        "Triangulating signal strength...",
+        "Compiling intelligence brief...",
+    ];
+
+    const sigColor = s => s === "BUY" ? P.em : s === "SELL" ? P.ro : P.am;
+    const sigIcon = s => s === "BUY" ? "▲" : s === "SELL" ? "▼" : "◆";
+
+    const buyCount = signals?.filter(s => s.signal === "BUY").length || 0;
+    const sellCount = signals?.filter(s => s.signal === "SELL").length || 0;
+    const holdCount = signals?.filter(s => s.signal === "HOLD").length || 0;
+    const avgConf = signals ? (signals.reduce((a, s) => a + s.confidence, 0) / signals.length).toFixed(1) : 0;
+    const sectorBias = buyCount > sellCount ? "BULLISH" : sellCount > buyCount ? "BEARISH" : "NEUTRAL";
+    const biasColor = sectorBias === "BULLISH" ? P.em : sectorBias === "BEARISH" ? P.ro : P.am;
+
+    return (
         <div>
+            {/* Scanner Header */}
+            <div style={{
+                background: `linear-gradient(135deg, ${P.deep}, ${P.neb})`,
+                border: `1px solid ${P.cy}20`, borderRadius: 16,
+                padding: "32px 36px", marginBottom: 24,
+                position: "relative", overflow: "hidden",
+            }}>
+                <div style={{
+                    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
+                    background: `radial-gradient(ellipse at 50% 0%, ${P.cy}08 0%, transparent 70%)`,
+                }} />
+                <div style={{ position: "relative", zIndex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 6 }}>
+                        <div style={{
+                            width: 10, height: 10, borderRadius: "50%",
+                            background: loading ? P.am : signals ? P.em : P.txD,
+                            boxShadow: `0 0 12px ${loading ? P.am : signals ? P.em : P.txD}`,
+                            animation: loading ? "pulse 1.5s infinite" : "none",
+                        }} />
+                        <span style={{ fontSize: 9, fontFamily: FM, color: P.txD, textTransform: "uppercase", letterSpacing: 2 }}>
+                            {loading ? "scanning" : signals ? "scan complete" : "standing by"}
+                        </span>
+                    </div>
+                    <div style={{ fontSize: 20, fontWeight: 700, fontFamily: F, color: P.txB, marginBottom: 4 }}>
+                        Signal Scanner
+                    </div>
+                    <div style={{ fontSize: 11, color: P.txD, fontFamily: FM, marginBottom: 20, maxWidth: 600 }}>
+                        Scans live news for all 11 pure-play space companies and generates BUY / HOLD / SELL signals
+                        based on recent catalysts, sentiment, and risk factors.
+                    </div>
+                    <button onClick={runScan} disabled={loading} style={{
+                        padding: "12px 32px", borderRadius: 10, cursor: loading ? "wait" : "pointer",
+                        background: loading ? P.pan : `linear-gradient(135deg, ${P.cy}30, ${P.vi}30)`,
+                        border: `1px solid ${loading ? P.brd : P.cy}50`,
+                        color: P.txB, fontFamily: FM, fontSize: 12, fontWeight: 600,
+                        letterSpacing: 1, textTransform: "uppercase",
+                        transition: "all 0.3s",
+                    }}>
+                        {loading ? "Scanning..." : signals ? "Re-Scan" : "Initiate Scan"}
+                    </button>
+                </div>
+            </div>
 
+            {/* Scanning Animation */}
+            {loading && (
+                <GC glow={P.cy}>
+                    <div style={{ textAlign: "center", padding: "30px 0" }}>
+                        <div style={{ position: "relative", width: 120, height: 120, margin: "0 auto 20px" }}>
+                            <svg width="120" height="120" viewBox="0 0 120 120">
+                                <circle cx="60" cy="60" r="55" fill="none" stroke={P.brd} strokeWidth="1" />
+                                <circle cx="60" cy="60" r="40" fill="none" stroke={P.brd} strokeWidth="0.5" />
+                                <circle cx="60" cy="60" r="25" fill="none" stroke={P.brd} strokeWidth="0.5" />
+                                <circle cx="60" cy="60" r="3" fill={P.cy} opacity="0.8" />
+                                <line x1="60" y1="60" x2="60" y2="8" stroke={P.cy} strokeWidth="1.5" opacity="0.6"
+                                    style={{ transformOrigin: "60px 60px", animation: "spin 2s linear infinite" }} />
+                                {TICKERS.slice(0, 8).map((_, i) => {
+                                    const angle = (i / 8) * Math.PI * 2 - Math.PI / 2;
+                                    const r = 35 + Math.random() * 18;
+                                    return <circle key={i} cx={60 + Math.cos(angle) * r} cy={60 + Math.sin(angle) * r}
+                                        r="2" fill={P.cy} opacity={scanPhase > i ? 0.8 : 0.15} />;
+                                })}
+                            </svg>
+                        </div>
+                        <div style={{ fontSize: 12, fontFamily: FM, color: P.cy, marginBottom: 6 }}>
+                            {scanMessages[Math.min(scanPhase, scanMessages.length - 1)]}
+                        </div>
+                        <div style={{ fontSize: 9, fontFamily: FM, color: P.txD }}>
+                            {Math.min(scanPhase + 1, TICKERS.length)} / {TICKERS.length} targets acquired
+                        </div>
+                    </div>
+                </GC>
+            )}
+
+            {/* Sector Summary */}
+            {signals && (
+                <div style={{
+                    background: biasColor + "08",
+                    border: `1px solid ${biasColor}25`,
+                    borderRadius: 16, padding: "24px 32px", marginBottom: 24,
+                    display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 20,
+                }}>
+                    <div>
+                        <div style={{ fontSize: 9, fontFamily: FM, color: P.txD, textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 6 }}>
+                            Sector Bias
+                        </div>
+                        <div style={{ fontSize: 22, fontWeight: 700, fontFamily: F, color: biasColor, letterSpacing: 1 }}>
+                            {sectorBias}
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 28 }}>
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: FM, color: P.em }}>{buyCount}</div>
+                            <div style={{ fontSize: 9, fontFamily: FM, color: P.txD, letterSpacing: 1 }}>BUY</div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: FM, color: P.am }}>{holdCount}</div>
+                            <div style={{ fontSize: 9, fontFamily: FM, color: P.txD, letterSpacing: 1 }}>HOLD</div>
+                        </div>
+                        <div style={{ textAlign: "center" }}>
+                            <div style={{ fontSize: 28, fontWeight: 700, fontFamily: FM, color: P.ro }}>{sellCount}</div>
+                            <div style={{ fontSize: 9, fontFamily: FM, color: P.txD, letterSpacing: 1 }}>SELL</div>
+                        </div>
+                    </div>
+                    <div style={{ display: "flex", gap: 24 }}>
+                        <SP label="Avg Confidence" value={`${avgConf} / 5`} color={P.cy} />
+                        <SP label="Coverage" value={`${signals.length} names`} color={P.txB} />
+                    </div>
+                </div>
+            )}
+
+            {/* Signal Cards */}
+            {signals && (
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+                    {[...signals]
+                        .sort((a, b) => {
+                            const order = { BUY: 0, HOLD: 1, SELL: 2 };
+                            return (order[a.signal] ?? 1) - (order[b.signal] ?? 1) || b.confidence - a.confidence;
+                        })
+                        .map((d, i) => {
+                            const sc = sigColor(d.signal);
+                            return (
+                                <div key={i} style={{
+                                    background: P.pan, backdropFilter: "blur(16px)",
+                                    border: `1px solid ${sc}25`,
+                                    borderRadius: 14, padding: "20px 22px",
+                                    position: "relative", overflow: "hidden",
+                                    transition: "border-color 0.3s",
+                                }}>
+                                    {/* Glow accent */}
+                                    <div style={{
+                                        position: "absolute", top: 0, left: 0, right: 0, height: 2,
+                                        background: `linear-gradient(90deg, transparent, ${sc}, transparent)`,
+                                        opacity: 0.6,
+                                    }} />
+
+                                    {/* Header */}
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
+                                        <div>
+                                            <div style={{ fontSize: 18, fontWeight: 700, fontFamily: FM, color: P.cy }}>{d.ticker}</div>
+                                        </div>
+                                        <div style={{
+                                            display: "flex", alignItems: "center", gap: 6,
+                                            background: sc + "15", border: `1px solid ${sc}30`,
+                                            padding: "5px 14px", borderRadius: 8,
+                                        }}>
+                                            <span style={{ fontSize: 14, color: sc }}>{sigIcon(d.signal)}</span>
+                                            <span style={{ fontSize: 13, fontWeight: 700, fontFamily: FM, color: sc, letterSpacing: 1 }}>
+                                                {d.signal}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Confidence */}
+                                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 14 }}>
+                                        <div style={{ display: "flex", gap: 3 }}>
+                                            {[1, 2, 3, 4, 5].map(n => (
+                                                <div key={n} style={{
+                                                    width: 20, height: 4, borderRadius: 2,
+                                                    background: n <= d.confidence ? sc : P.brd,
+                                                    transition: "background 0.3s",
+                                                }} />
+                                            ))}
+                                        </div>
+                                        <span style={{ fontSize: 9, fontFamily: FM, color: P.txD, marginLeft: 2 }}>
+                                            {d.confidence}/5 confidence
+                                        </span>
+                                    </div>
+
+                                    {/* Headline */}
+                                    <div style={{
+                                        fontSize: 12, fontFamily: F, fontWeight: 600, color: P.txB,
+                                        marginBottom: 12, lineHeight: 1.5,
+                                        borderLeft: `2px solid ${sc}40`, paddingLeft: 10,
+                                    }}>
+                                        {d.headline}
+                                    </div>
+
+                                    {/* Catalyst & Risk */}
+                                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                            <span style={{
+                                                fontSize: 8, fontFamily: FM, color: P.em,
+                                                background: P.em + "15", padding: "2px 6px",
+                                                borderRadius: 4, flexShrink: 0, marginTop: 1,
+                                                letterSpacing: 0.5,
+                                            }}>CATALYST</span>
+                                            <span style={{ fontSize: 10, fontFamily: FM, color: P.txt, lineHeight: 1.5 }}>{d.catalyst}</span>
+                                        </div>
+                                        <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+                                            <span style={{
+                                                fontSize: 8, fontFamily: FM, color: P.ro,
+                                                background: P.ro + "15", padding: "2px 6px",
+                                                borderRadius: 4, flexShrink: 0, marginTop: 1,
+                                                letterSpacing: 0.5,
+                                            }}>RISK</span>
+                                            <span style={{ fontSize: 10, fontFamily: FM, color: P.txt, lineHeight: 1.5 }}>{d.risk}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                </div>
+            )}
+
+            <style>{`
+                @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+                @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
+            `}</style>
         </div>
-    )
+    );
 }
 
 const TABS = ["Overview", "Fundamentals", "Valuation", "Dilution", "TAM", "Regression", "Risk and Regimes", "Signal Scanner", "AI Analysis"];

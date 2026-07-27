@@ -103,7 +103,7 @@ def get_risk():
 def get_regimes():
     data = get_data()
     reg = regimes.run_regime_analysis(data)
-    return df_to_records(reg.regime_df)
+    return df_to_records(reg.regime_df.reset_index(names="ticker"))
 
 @app.get("/api/robustness")
 def get_robustness():
@@ -264,10 +264,6 @@ async def ai_analyze(request: Request):
                 content={"error": {"message": str(result)}},
                 status_code=400
             )
-        
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port = 8000)
 
 @app.post("/api/ai-news-signal")
 async def ai_news_signal(request: Request): 
@@ -276,7 +272,7 @@ async def ai_news_signal(request: Request):
     if not api_key:
         return {"error": "GEMINI API KEY NOT FOUND"}
     
-    tickers = body.get("ticker", [])
+    tickers = body.get("tickers", [])
     ticker_str = ", ".join(tickers)
 
     prompt=f"""Search for the latest news (past 2 weeks) on these commercial space companies: {ticker_str}.
@@ -294,18 +290,26 @@ Return ONLY valid JSON (no markdown, no backticks) as an array of objects with k
     async with httpx.AsyncClient(timeout=90) as client:
         resp = await client.post(
             f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent?key={api_key}",
-            headers = {"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json"},
             json={
                 "contents": [{"parts": [{"text": prompt}]}],
-                "tools": [{"google_search": {}}],
             },
         )
         result = resp.json()
         print("NEWS SIGNAL RESPONSE:", result)
         try:
-            text = result['candidate'][0]['content']['parts']
+            text = result["candidates"][0]["content"]["parts"][0]["text"]
             return {"content": [{"type": "text", "text": text}]}
         except (KeyError, IndexError):
             from fastapi.responses import JSONResponse
             return JSONResponse(content={"error": str(result)}, status_code=400)
-    
+
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+        
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port = 8000)
+

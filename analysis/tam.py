@@ -69,7 +69,7 @@ def tam_penetration(data, ticker: str, target_ps: float = 4.0, years: int = 5) -
             if tam_dollars > 0 else None
         
         if out['required_share_%'] is not None:
-            out['feasible'] = out['required_share_%'] <= 30
+            out['feasible'] = out['required_share_%'] <=20
     else:
         out['note'] = 'no market cap'
 
